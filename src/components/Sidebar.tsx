@@ -1,7 +1,46 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import AuthFooter from "./AuthFooter";
-import type { Tree } from "@/lib/types";
+import type { SondeurNode, Tree } from "@/lib/types";
+
+interface SearchHit {
+  treeId: string;
+  treeTitle: string;
+  nodeId: string;
+  /** ノードの見出し (選択スパン or 質問文) */
+  label: string;
+  /** マッチ前後の本文スニペット */
+  snippet: string;
+}
+
+function nodeLabel(n: SondeurNode): string {
+  return n.edgeType === "ask" ? n.question ?? n.selectedSpan : n.selectedSpan;
+}
+
+/** 全ツリー横断のクライアントサイド検索 (タイトル・見出し・本文) */
+function searchTrees(trees: Tree[], query: string, limit = 20): SearchHit[] {
+  const q = query.toLowerCase();
+  const hits: SearchHit[] = [];
+  for (const tree of trees) {
+    for (const node of Object.values(tree.nodes)) {
+      const label = nodeLabel(node);
+      const content = node.content;
+      const labelIdx = label.toLowerCase().indexOf(q);
+      const contentIdx = content.toLowerCase().indexOf(q);
+      if (labelIdx < 0 && contentIdx < 0) continue;
+      const snippet =
+        contentIdx >= 0
+          ? (contentIdx > 20 ? "…" : "") +
+            content.slice(Math.max(0, contentIdx - 20), contentIdx + 40).replace(/\s+/g, " ") +
+            "…"
+          : content.slice(0, 50).replace(/\s+/g, " ") + (content.length > 50 ? "…" : "");
+      hits.push({ treeId: tree.id, treeTitle: tree.title, nodeId: node.id, label, snippet });
+      if (hits.length >= limit) return hits;
+    }
+  }
+  return hits;
+}
 
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts;
@@ -21,6 +60,7 @@ export default function Sidebar({
   trees,
   selectedTreeId,
   onSelectTree,
+  onSelectNode,
   onNewTree,
   onDeleteTree,
 }: {
@@ -29,9 +69,17 @@ export default function Sidebar({
   trees: Tree[];
   selectedTreeId: string | null;
   onSelectTree: (id: string) => void;
+  /** 検索ヒットからのジャンプ */
+  onSelectNode: (treeId: string, nodeId: string) => void;
   onNewTree: () => void;
   onDeleteTree: (id: string) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const hits = useMemo(
+    () => (query.trim().length >= 2 ? searchTrees(trees, query.trim()) : null),
+    [trees, query]
+  );
+
   if (!open) {
     return (
       <button
@@ -73,6 +121,37 @@ export default function Sidebar({
 
       <div className="mx-4 mb-1 border-b border-[#d8dde8]" />
 
+      {/* 横断検索 */}
+      <div className="px-3 py-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+          placeholder="航跡を検索…"
+          className="neu-inset w-full rounded-lg px-3 py-1.5 text-[12px] text-slate-700 placeholder-slate-400 outline-none"
+        />
+      </div>
+
+      {hits !== null ? (
+        <div className="flex-1 overflow-y-auto px-2 py-1.5">
+          {hits.length === 0 && (
+            <div className="px-3 py-6 text-xs text-slate-400">「{query}」は見つかりませんでした。</div>
+          )}
+          {hits.map((h) => (
+            <div
+              key={`${h.treeId}:${h.nodeId}`}
+              onClick={() => {
+                onSelectNode(h.treeId, h.nodeId);
+              }}
+              className="mb-1.5 cursor-pointer rounded-xl px-3 py-2 transition-colors hover:bg-[#dde2ec]"
+            >
+              <div className="truncate text-[12px] font-medium text-slate-600">{h.label}</div>
+              <div className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-400">{h.snippet}</div>
+              <div className="mt-0.5 truncate text-[10px] text-slate-300">{h.treeTitle}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="flex-1 overflow-y-auto px-2 py-1.5">
         {trees.length === 0 && (
           <div className="px-3 py-8 text-xs leading-6 text-slate-400">
@@ -119,6 +198,7 @@ export default function Sidebar({
           );
         })}
       </div>
+      )}
 
       <AuthFooter />
     </div>

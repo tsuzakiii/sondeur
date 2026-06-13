@@ -5,10 +5,13 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
  * 木の形 (深さ/分岐) は自由で、生成したノードの数だけを数える。
  */
 
-/** 月間ノード生成上限 (null = 無制限)。free 30 ≈ 上限フル消費で月¥25〜45 の原価 */
+/**
+ * 月間ノード生成上限 (null = 無制限)。
+ * free 30 ≈ 上限フル消費で月¥25〜45 / standard 500 ≈ 上限フル消費で月¥400〜750 (980円に対し赤字にならない線)
+ */
 export const PLAN_NODE_LIMITS: Record<string, number | null> = {
   free: 30,
-  standard: null,
+  standard: 500,
   pro: null,
 };
 
@@ -47,9 +50,13 @@ export async function consumeNodeQuota(
     return { ok: true };
   }
   if (!allowed) {
+    const plan = profile?.plan ?? "free";
     return {
       ok: false,
-      reason: `Freeプランの今月のノード生成上限 (${limit}個) に達しました。来月リセットされます。アップグレードで無制限になります。`,
+      reason:
+        plan === "free"
+          ? `Freeプランの今月のノード生成上限 (${limit}個) に達しました。来月リセットされます。アップグレードで枠が広がります。`
+          : `今月のノード生成上限 (${limit}個) に達しました。来月リセットされます。Proプランで無制限になります。`,
     };
   }
   return { ok: true };

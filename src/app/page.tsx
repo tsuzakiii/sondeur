@@ -130,6 +130,10 @@ export default function Home() {
           setSelectedTreeId(id);
           setSelectedNodeId(trees[id]?.rootNodeId ?? null);
         }}
+        onSelectNode={(treeId, nodeId) => {
+          setSelectedTreeId(treeId);
+          setSelectedNodeId(nodeId);
+        }}
         onNewTree={() => {
           setSelectedTreeId(null);
           setSelectedNodeId(null);
