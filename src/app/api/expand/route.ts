@@ -5,22 +5,24 @@ import type { ExpandRequest } from "@/lib/types";
 
 export const runtime = "nodejs";
 
-const SYSTEM_PROMPT = `あなたは Sondeur — 学習者が概念を掘り下げるためのアシスタント。
+const SYSTEM_PROMPT = `あなたは Sondeur — 学習者が一つの概念をどこまでも深く掘り下げるためのアシスタント。
+
+核心原則: 深化とは「親ノードが言っていないことを新たに足す」こと。
+親の要約や言い換えは深化ではない。選択された概念について、親が触れなかった仕組み・背景・具体例・数値・比較を提示する。
 
 応答ルール:
-- 簡潔に。300〜500字程度。前置きや挨拶は書かない。
-- ただし、選択された概念と元の文脈との関係まで必ず踏み込む。
-  例: 「水素だから可能で、メタンでは不可」のように、文脈固有の理由まで言い切る。
-- 一般論の辞書的説明で止まらない。「この文脈でなぜそれが登場するのか」を含める。
-- 平易な日本語。専門用語を使う場合は初出で短く補足する。
+- 300〜500字。前置きや挨拶は書かない。
+- 親の文脈は「なぜこの概念が出てきたか」を理解するためだけに使う。応答の主役は選択された概念そのもの。
+- 読者が「もっと知りたい」と思えるフックを残す。断言で終わらず、関連する未説明の概念や意外な事実を示唆する。
+- 平易な日本語。専門用語は初出で短く補足。
 - マークダウンの見出しは使わない。段落と必要なら箇条書きのみ。
-- 事実性の規律: 物理的・論理的な仕組みの説明は踏み込んでよいが、
-  設計動機・歴史的経緯・固有名詞に紐づく事実は確信がある場合のみ断定する。
-  不確かな場合は「〜とされる」「〜の可能性がある」と推測であることを明示し、
-  もっともらしい動機づけを創作しない。
-- web検索の使い分け: 設計動機・歴史的経緯・仕様値など固有の事実に
-  確信が持てない時は検索で裏を取る。一般的な概念説明や、与えられた文脈から
-  論理的に導ける説明は検索せずに答える。`;
+- 事実性: 仕組みの説明は踏み込んでよいが、設計動機・歴史的経緯・固有名詞に紐づく事実は確信がなければ断定しない。不確かなら「〜とされる」と明示し、創作しない。
+- web検索: 固有の事実（年号・仕様値・人名・最新動向）には積極的に検索して最新情報を取る。一般原理の説明は検索不要。迷ったら検索する。`;
+
+function truncate(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  return text.slice(0, maxLen) + "…(省略)";
+}
 
 function buildUserPrompt(req: ExpandRequest): string {
   const parts: string[] = [];
@@ -32,7 +34,7 @@ function buildUserPrompt(req: ExpandRequest): string {
     parts.push(`[操作] この質問に答え、学習者が掘り下げの起点にできる説明をする`);
   } else if (req.operation === "ask") {
     if (req.grandparentContent) {
-      parts.push(`[祖父ノード本文]\n${req.grandparentContent}`);
+      parts.push(`[背景文脈 (参考程度)]\n${truncate(req.grandparentContent, 200)}`);
     }
     parts.push(`[親ノード本文]\n${req.parentContent}`);
     if (req.selectedSpan) {
@@ -41,19 +43,19 @@ function buildUserPrompt(req: ExpandRequest): string {
     parts.push(`[学習者の質問]\n${req.question}`);
     parts.push(
       req.selectedSpan
-        ? `[操作] 選択スパンについての学習者の質問に、親本文の文脈に即して答える`
-        : `[操作] 親本文についての学習者の質問に、その文脈に即して答える`
+        ? `[操作] 選択スパンについて学習者が問いを立てた。親の説明を超えて、この問いに正面から答える。親の繰り返しは不要。`
+        : `[操作] 親本文について学習者が問いを立てた。親の説明を超えて、この問いに正面から答える。`
     );
   } else {
     if (req.grandparentContent) {
-      parts.push(`[祖父ノード本文]\n${req.grandparentContent}`);
+      parts.push(`[背景文脈 (参考程度)]\n${truncate(req.grandparentContent, 200)}`);
     }
     parts.push(`[親ノード本文 (この中からスパンが選択された)]\n${req.parentContent}`);
     parts.push(`[選択スパン] "${req.selectedSpan}"`);
     parts.push(
       req.operation === "what"
-        ? `[操作] What is it — 選択スパンが何であるかを、親本文の文脈に即して説明する`
-        : `[操作] Why is it — 親本文の文脈で、なぜそうなのか・なぜそれが使われる/成り立つのかを説明する`
+        ? `[操作] What is it — 「${req.selectedSpan}」とは何か。親が説明していない仕組み・構造・具体例を掘り下げる。親の文脈は出発点であって、応答の中心ではない。`
+        : `[操作] Why is it — なぜ「${req.selectedSpan}」なのか。親が触れていない根拠・原理・歴史的背景・代替との比較を掘り下げる。`
     );
   }
   return parts.join("\n\n");
