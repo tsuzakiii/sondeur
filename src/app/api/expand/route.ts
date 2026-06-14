@@ -36,7 +36,7 @@ function buildUserPrompt(req: ExpandRequest): string {
   }
   if (req.operation === "root") {
     parts.push(`[質問]\n${req.selectedSpan}`);
-    parts.push(`[操作] この質問に答え、学習者が掘り下げの起点にできる説明をする`);
+    parts.push(`[操作] この質問に答える。まず検索して事実関係を確認し、具体的な固有名詞・日付・数値を使って構造的に説明する。学習者がさらに掘り下げたくなる起点を作る。`);
   } else if (req.operation === "ask") {
     if (req.grandparentContent) {
       parts.push(`[背景文脈 (参考程度)]\n${truncate(req.grandparentContent, 200)}`);
