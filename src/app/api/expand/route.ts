@@ -44,7 +44,7 @@ function buildUserPrompt(req: ExpandRequest): string {
   }
   if (req.operation === "root") {
     parts.push(`[質問]\n${req.selectedSpan}`);
-    parts.push(`[操作] この質問に答える。まず検索して、現在確認できる事実・固有名詞・日付・数値を押さえる。質問の全体像を抽象的にまとめず、中心にある具体的な対象・出来事・制度・技術を名指しする。なぜそれが問題になるのかを、関係者・仕組み・対立軸・制約の流れで説明する。百科事典的な定義だけで終えない。`);
+    parts.push(`[操作] この質問に答える。まず検索して最新の事実を押さえる。同じテーマで複数時期の出来事がある場合、最も新しいものを中心に据える。質問の中心にある具体的な対象・出来事・制度・技術を名指しし、なぜそれが問題になるのかを関係者・仕組み・対立軸・制約の流れで説明する。`);
   } else if (req.operation === "ask") {
     if (req.grandparentContent) {
       parts.push(`[背景文脈 (参考程度)]\n${truncate(req.grandparentContent, 200)}`);
