@@ -60,7 +60,7 @@ export default function AuthFooter() {
 
   if (auth.kind === "signedIn") {
     const plan = profile?.plan ?? "free";
-    const limit = PLAN_NODE_LIMITS[plan] ?? PLAN_NODE_LIMITS.free;
+    const limit = plan in PLAN_NODE_LIMITS ? PLAN_NODE_LIMITS[plan] : PLAN_NODE_LIMITS.free;
     return (
       <div className="border-t border-[#d8dde8] px-4 py-3">
         <div className="flex items-center justify-between gap-2">

@@ -6,6 +6,7 @@ import {
   childrenOf,
   createTree,
   pathToNode,
+  resetNodeContent,
   setNodeStatus,
 } from "./store";
 import { syncNodeFinalized, syncTreeCreated } from "./sync";
@@ -99,6 +100,50 @@ export function expandSpan(
     operation,
   });
   return nodeId;
+}
+
+const QUOTA_ERROR_PATTERNS = ["ノード生成上限", "お試し枠を使い切りました", "プランの上限に達しました"];
+
+function isQuotaError(node: SondeurNode): boolean {
+  return node.status === "error" && QUOTA_ERROR_PATTERNS.some((p) => node.content.includes(p));
+}
+
+function buildRetryRequest(tree: Tree, node: SondeurNode): ExpandRequest | null {
+  if (node.edgeType === "root") {
+    return {
+      pathSummaries: [],
+      parentContent: "",
+      grandparentContent: null,
+      selectedSpan: node.selectedSpan,
+      operation: "root",
+    };
+  }
+  const parent = node.parentId ? tree.nodes[node.parentId] : null;
+  if (!parent || parent.status !== "done") return null;
+  const grandparent = parent.parentId ? tree.nodes[parent.parentId] : null;
+  const path = pathToNode(tree, node.parentId!);
+  const base = {
+    pathSummaries: path.map(pathLabel),
+    parentId: node.parentId!,
+    parentContent: parent.content,
+    grandparentContent: grandparent?.content ?? null,
+    selectedSpan: node.selectedSpan,
+  };
+  if (node.edgeType === "ask") {
+    return { ...base, question: node.question, operation: "ask" as const };
+  }
+  return { ...base, operation: node.edgeType as "what" | "why" };
+}
+
+/** クオータエラーのノードを表示時に自動再生成する (ノードを開いた時に呼ぶ) */
+export function retryIfQuotaError(tree: Tree, nodeId: string): boolean {
+  const node = tree.nodes[nodeId];
+  if (!node || !isQuotaError(node)) return false;
+  const req = buildRetryRequest(tree, node);
+  if (!req) return false;
+  resetNodeContent(tree.id, node.id);
+  void streamInto(tree.id, node.id, req);
+  return true;
 }
 
 /** 自由質問 (スパン選択あり / なし両対応)。質問が違えば別ノードなので重複排除しない */

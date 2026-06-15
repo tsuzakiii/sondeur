@@ -204,6 +204,24 @@ export function setNodeStatus(treeId: string, nodeId: string, status: SondeurNod
   emit();
 }
 
+export function resetNodeContent(treeId: string, nodeId: string) {
+  load();
+  const tree = state.trees[treeId];
+  const node = tree?.nodes[nodeId];
+  if (!tree || !node) return;
+  state = {
+    trees: {
+      ...state.trees,
+      [treeId]: {
+        ...tree,
+        nodes: { ...tree.nodes, [nodeId]: { ...node, content: "", status: "streaming" } },
+        updatedAt: Date.now(),
+      },
+    },
+  };
+  emit();
+}
+
 export function toggleCollapsed(treeId: string, nodeId: string) {
   load();
   const tree = state.trees[treeId];

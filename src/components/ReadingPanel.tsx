@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { childrenOf } from "@/lib/store";
+import { retryIfQuotaError } from "@/lib/expand";
 import type { SondeurNode, Tree } from "@/lib/types";
 
 interface PillState {
@@ -125,10 +126,12 @@ export default function ReadingPanel({
   }, []);
 
   // 表示ノードが切り替わったら古いピルを必ず捨てる (staleオフセット防止)
+  // クオータエラーのノードを開いたら自動再生成
   useEffect(() => {
     setPill(null);
     setPillQuestion("");
     setNodeQuestion("");
+    retryIfQuotaError(tree, node.id);
   }, [node.id]);
 
   useEffect(() => {

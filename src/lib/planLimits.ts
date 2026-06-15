@@ -41,7 +41,8 @@ export async function consumeNodeQuota(
     console.error("[limits] profile read failed", pErr);
     return { ok: true }; // 計測失敗でユーザーを止めない
   }
-  const limit = PLAN_NODE_LIMITS[profile?.plan ?? "free"] ?? PLAN_NODE_LIMITS.free;
+  const plan = profile?.plan ?? "free";
+  const limit = plan in PLAN_NODE_LIMITS ? PLAN_NODE_LIMITS[plan] : PLAN_NODE_LIMITS.free;
   if (limit === null) return { ok: true };
 
   const { data: allowed, error } = await supabase.rpc("consume_node_quota", { p_limit: limit });
@@ -50,7 +51,6 @@ export async function consumeNodeQuota(
     return { ok: true };
   }
   if (!allowed) {
-    const plan = profile?.plan ?? "free";
     return {
       ok: false,
       reason:
