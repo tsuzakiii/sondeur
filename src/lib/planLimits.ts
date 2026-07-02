@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/nextjs";
 
 /**
  * プラン制限: ノード生成数の総量制。
@@ -39,6 +40,7 @@ export async function consumeNodeQuota(
     .single();
   if (pErr) {
     console.error("[limits] profile read failed", pErr);
+    Sentry.captureException(pErr); // fail-openなので実際の失敗頻度を監視する
     return { ok: true }; // 計測失敗でユーザーを止めない
   }
   const plan = profile?.plan ?? "free";
@@ -48,6 +50,7 @@ export async function consumeNodeQuota(
   const { data: allowed, error } = await supabase.rpc("consume_node_quota", { p_limit: limit });
   if (error) {
     console.error("[limits] quota consume failed", error);
+    Sentry.captureException(error); // fail-openなので実際の失敗頻度を監視する
     return { ok: true };
   }
   if (!allowed) {

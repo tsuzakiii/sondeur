@@ -15,6 +15,7 @@ import { select } from "d3-selection";
 import { zoom, zoomIdentity, zoomTransform, type ZoomBehavior } from "d3-zoom";
 import { drag } from "d3-drag";
 import { depthOf } from "@/lib/store";
+import { useI18n } from "@/lib/i18n";
 import type { SondeurNode, Tree } from "@/lib/types";
 
 interface SimNode extends SimulationNodeDatum {
@@ -50,6 +51,7 @@ export default function GraphView({
   onSelectNode: (id: string) => void;
   onToggleCollapse: (id: string) => void;
 }) {
+  const { t } = useI18n();
   const svgRef = useRef<SVGSVGElement>(null);
   const simNodesRef = useRef<Map<string, SimNode>>(new Map());
   const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -385,15 +387,15 @@ export default function GraphView({
       <div className="neu-raised-sm pointer-events-none absolute left-16 top-4 flex flex-col gap-1.5 rounded-xl px-3.5 py-2.5 text-[11px] text-slate-500">
         <div className="flex items-center gap-2">
           <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="#2f4a7c" strokeWidth="2" strokeLinecap="round" /></svg>
-          <span><span className="font-semibold" style={{ color: "#2f4a7c" }}>What</span> — それは何か</span>
+          <span><span className="font-semibold" style={{ color: "#2f4a7c" }}>What</span> — {t("graph.whatDesc")}</span>
         </div>
         <div className="flex items-center gap-2">
           <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="#8e3a52" strokeWidth="2" strokeLinecap="round" strokeDasharray="5 3" /></svg>
-          <span><span className="font-semibold" style={{ color: "#8e3a52" }}>Why</span> — なぜそうなのか</span>
+          <span><span className="font-semibold" style={{ color: "#8e3a52" }}>Why</span> — {t("graph.whyDesc")}</span>
         </div>
         <div className="flex items-center gap-2">
           <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="#b8912a" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 4" /></svg>
-          <span><span className="font-semibold" style={{ color: "#b8912a" }}>質問</span> — 自分の言葉で</span>
+          <span><span className="font-semibold" style={{ color: "#b8912a" }}>Ask</span> — {t("graph.askDesc")}</span>
         </div>
       </div>
     </div>

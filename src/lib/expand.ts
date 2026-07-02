@@ -10,6 +10,7 @@ import {
   setNodeStatus,
 } from "./store";
 import { syncNodeFinalized, syncTreeCreated } from "./sync";
+import { getCurrentLocale } from "./i18n";
 import type { ExpandRequest, SondeurNode, Tree } from "./types";
 
 function summarize(text: string, max = 50): string {
@@ -33,7 +34,7 @@ async function streamInto(treeId: string, nodeId: string, req: ExpandRequest) {
     if (res.status === 402) {
       // プラン制限: 理由をそのまま本文として表示する
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      appendNodeContent(treeId, nodeId, data?.error ?? "プランの上限に達しました。");
+      appendNodeContent(treeId, nodeId, data?.error ?? "Plan limit reached.");
       setNodeStatus(treeId, nodeId, "error");
       return;
     }
@@ -54,7 +55,7 @@ async function streamInto(treeId: string, nodeId: string, req: ExpandRequest) {
     syncNodeFinalized(treeId, nodeId);
   } catch (err) {
     console.error(err);
-    appendNodeContent(treeId, nodeId, "\n\n[生成に失敗しました]");
+    appendNodeContent(treeId, nodeId, "\n\n[Generation failed]");
     setNodeStatus(treeId, nodeId, "error");
   }
 }
@@ -69,6 +70,7 @@ export function startTree(question: string): { treeId: string; nodeId: string } 
     grandparentContent: null,
     selectedSpan: question,
     operation: "root",
+    lang: getCurrentLocale(),
   });
   return { treeId, nodeId };
 }
@@ -98,11 +100,15 @@ export function expandSpan(
     grandparentContent: grandparent?.content ?? null,
     selectedSpan,
     operation,
+    lang: getCurrentLocale(),
   });
   return nodeId;
 }
 
-const QUOTA_ERROR_PATTERNS = ["ノード生成上限", "お試し枠を使い切りました", "プランの上限に達しました"];
+const QUOTA_ERROR_PATTERNS = [
+  "ノード生成上限", "お試し枠を使い切りました", "プランの上限に達しました",
+  "Plan limit reached", "Trial exhausted",
+];
 
 function isQuotaError(node: SondeurNode): boolean {
   return node.status === "error" && QUOTA_ERROR_PATTERNS.some((p) => node.content.includes(p));
@@ -116,6 +122,7 @@ function buildRetryRequest(tree: Tree, node: SondeurNode): ExpandRequest | null 
       grandparentContent: null,
       selectedSpan: node.selectedSpan,
       operation: "root",
+      lang: getCurrentLocale(),
     };
   }
   const parent = node.parentId ? tree.nodes[node.parentId] : null;
@@ -130,15 +137,25 @@ function buildRetryRequest(tree: Tree, node: SondeurNode): ExpandRequest | null 
     selectedSpan: node.selectedSpan,
   };
   if (node.edgeType === "ask") {
-    return { ...base, question: node.question, operation: "ask" as const };
+    return { ...base, question: node.question, operation: "ask" as const, lang: getCurrentLocale() };
   }
-  return { ...base, operation: node.edgeType as "what" | "why" };
+  return { ...base, operation: node.edgeType as "what" | "why", lang: getCurrentLocale() };
 }
 
 /** クオータエラーのノードを表示時に自動再生成する (ノードを開いた時に呼ぶ) */
 export function retryIfQuotaError(tree: Tree, nodeId: string): boolean {
   const node = tree.nodes[nodeId];
   if (!node || !isQuotaError(node)) return false;
+  const req = buildRetryRequest(tree, node);
+  if (!req) return false;
+  resetNodeContent(tree.id, node.id);
+  void streamInto(tree.id, node.id, req);
+  return true;
+}
+
+export function regenerateNode(tree: Tree, nodeId: string): boolean {
+  const node = tree.nodes[nodeId];
+  if (!node || node.status === "streaming") return false;
   const req = buildRetryRequest(tree, node);
   if (!req) return false;
   resetNodeContent(tree.id, node.id);
@@ -167,6 +184,7 @@ export function expandAsk(
     selectedSpan,
     question,
     operation: "ask",
+    lang: getCurrentLocale(),
   });
   return nodeId;
 }

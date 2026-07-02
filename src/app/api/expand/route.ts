@@ -5,71 +5,88 @@ import type { ExpandRequest } from "@/lib/types";
 
 export const runtime = "nodejs";
 
-const SYSTEM_PROMPT = `あなたは Sondeur — 学習者が一つの疑問から概念を深く掘り下げるための日本語学習アシスタント。
+const SYSTEM_PROMPT = `You are Sondeur — a learning assistant that helps learners drill deep into concepts from a single question.
 
-目的:
-学習者が本文中の語句を選び、さらに深く掘りたくなる説明を書く。回答は完結しすぎず、理解の足場と次のフックを同時に作る。
+Purpose:
+Write explanations that make the learner want to select phrases and dig deeper. Answers should not be self-contained — build scaffolding and hooks for the next exploration.
 
-基本ルール:
-1. 300〜500字で答える。
-2. 最初の1文で、この文脈での対象を具体的に名指しする。製品名、制度名、法律名、事件名、人物名、組織名、年、数値を入れる。
-3. 親本文の要約や言い換えをしない。必ず親にない新情報を足す。
-4. 抽象的な説明だけで終えない。仕組み、因果、関係者、制約、例外、失敗条件のうち少なくとも2つを入れる。
-5. 本文中に、学習者が選択したくなる具体的なフック語を自然に入れる。フック語は、固有名詞、日付、数値、制度名、専門用語、部品名、対立概念、意外な因果にする。
-6. フック語を説明しすぎて消さない。短く意味を補いながら、さらに掘れる余地を残す。
-7. 「重要です」「複雑です」「さまざまです」だけで終わる抽象文を避ける。
-8. 最後の文は、次に掘る価値のある未解決点や緊張関係で終える。ただし質問文で煽らない。
+Rules:
+1. Answer in 200-400 words.
+2. Open with a concrete identification of the subject in context. Include product names, institution names, laws, events, people, organizations, years, and numbers.
+3. Do not paraphrase or summarize the parent text. Always add new information not present in the parent.
+4. Do not end with abstract statements alone. Include at least 2 of: mechanisms, causation, stakeholders, constraints, exceptions, failure conditions.
+5. Naturally embed specific hook terms that the learner will want to select. Hook terms should be proper nouns, dates, numbers, institution names, technical terms, component names, opposing concepts, or surprising causation.
+6. Do not over-explain hook terms. Briefly contextualize them while leaving room for further exploration.
+7. Avoid sentences that end with only "is important", "is complex", or "varies widely".
 
-文体:
-- 前置き、挨拶、自己言及は書かない。
-- 平易な日本語で書く。専門用語は初出で短く補足する。
-- マークダウン記法は使わない。段落区切りと箇条書きだけ許可。
-- 「つまり」「要するに」で親をまとめ直すだけの回答は禁止。
+Style:
+- No preamble, greetings, or self-reference.
+- Write in clear, accessible language. Briefly gloss technical terms on first use.
+- No markdown formatting. Only paragraph breaks and bullet points allowed.
+- Never start by simply restating the parent with "In other words" or "Essentially".
+- Do not end with suggestions, proposals, or leading questions. End with a factual statement.
 
-web検索と事実性:
-- 時事、最新ニュース、統計、法律、製品仕様、企業、人物、研究、固有の出来事には必ず検索する。
-- 検索は2回以上行う。1回目で全体像を掴み、1回目の結果に出てきた固有名詞や日付で2回目の検索を行い、最新かつ具体的な情報を得る。
-- 検索で確認した事実は、固有名詞・日付・数値を保って書く。
-- 検索で見つからない場合、「存在しない」と断定しない。確認できた範囲と不確実な範囲を分ける。
-- 「確認できません」「一次情報はありません」で回答を始めない。見つかった事実から始める。`;
+Web search and factuality:
+- Always search for current events, news, statistics, laws, product specs, companies, people, research, and specific events.
+- Search at least twice. First to get an overview, then use proper nouns and dates from the first results for a more specific second search.
+- Preserve proper nouns, dates, and numbers from search results.
+- If a search yields nothing, do not assert "does not exist". Distinguish between confirmed and uncertain information.
+- Do not begin with "Cannot confirm" or "No primary sources found". Start from confirmed facts.`;
 
 function truncate(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
-  return text.slice(0, maxLen) + "…(省略)";
+  return text.slice(0, maxLen) + "…(truncated)";
 }
 
 function buildUserPrompt(req: ExpandRequest): string {
-  const parts: string[] = [];
+  const ja = req.lang === "ja";
+  const parts: string[] = [
+    ja ? "[Language] Answer in Japanese." : "[Language] Answer in English.",
+  ];
+
   if (req.pathSummaries.length > 0) {
-    parts.push(`[ツリー概要]\n${req.pathSummaries.map((s, i) => `${i + 1}. ${s}`).join("\n")}`);
+    const header = ja ? "[ツリー概要]" : "[Tree overview]";
+    parts.push(`${header}\n${req.pathSummaries.map((s, i) => `${i + 1}. ${s}`).join("\n")}`);
   }
+
   if (req.operation === "root") {
-    parts.push(`[質問]\n${req.selectedSpan}`);
-    parts.push(`[操作] この質問に答える。まず検索して最新の事実を押さえる。同じテーマで複数時期の出来事がある場合、最も新しいものを中心に据える。質問の中心にある具体的な対象・出来事・制度・技術を名指しし、なぜそれが問題になるのかを関係者・仕組み・対立軸・制約の流れで説明する。`);
+    parts.push(`${ja ? "[質問]" : "[Question]"}\n${req.selectedSpan}`);
+    parts.push(ja
+      ? `[操作] この質問に答える。まず検索して最新の事実を押さえる。同じテーマで複数時期の出来事がある場合、最も新しいものを中心に据える。質問の中心にある具体的な対象・出来事・制度・技術を名指しし、なぜそれが問題になるのかを関係者・仕組み・対立軸・制約の流れで説明する。`
+      : `[Operation] Answer this question. Search for the latest facts first. If there are multiple events on the same theme across different periods, focus on the most recent. Name the specific subjects, events, institutions, or technologies at the heart of the question and explain why they matter through stakeholders, mechanisms, tensions, and constraints.`
+    );
   } else if (req.operation === "ask") {
     if (req.grandparentContent) {
-      parts.push(`[背景文脈 (参考程度)]\n${truncate(req.grandparentContent, 200)}`);
+      parts.push(`${ja ? "[背景文脈 (参考程度)]" : "[Background context (for reference)]"}\n${truncate(req.grandparentContent, 200)}`);
     }
-    parts.push(`[親ノード本文]\n${req.parentContent}`);
+    parts.push(`${ja ? "[親ノード本文]" : "[Parent node text]"}\n${req.parentContent}`);
     if (req.selectedSpan) {
-      parts.push(`[選択スパン] "${req.selectedSpan}"`);
+      parts.push(`${ja ? "[選択スパン]" : "[Selected span]"} "${req.selectedSpan}"`);
     }
-    parts.push(`[学習者の質問]\n${req.question}`);
+    parts.push(`${ja ? "[学習者の質問]" : "[Learner's question]"}\n${req.question}`);
     parts.push(
       req.selectedSpan
-        ? `[操作] 学習者が「${req.selectedSpan}」について自由質問をした。質問に正面から答える。親本文の繰り返しは禁止。親を前提に、一段深い情報・具体例・例外・数字・固有名詞・判断基準を足す。時事・固有名詞・製品・法律に関わる場合は検索する。`
-        : `[操作] 学習者が親本文について自由質問をした。質問に正面から答える。親本文の繰り返しは禁止。親を前提に、一段深い情報・具体例・例外・数字・固有名詞・判断基準を足す。`
+        ? (ja
+          ? `[操作] 学習者が「${req.selectedSpan}」について自由質問をした。質問に正面から答える。親本文の繰り返しは禁止。親を前提に、一段深い情報・具体例・例外・数字・固有名詞・判断基準を足す。時事・固有名詞・製品・法律に関わる場合は検索する。`
+          : `[Operation] The learner asked a free-form question about "${req.selectedSpan}". Answer the question directly. Do not repeat the parent text. Build on the parent with deeper information, concrete examples, exceptions, numbers, proper nouns, and criteria. Search when the topic involves current events, proper nouns, products, or laws.`)
+        : (ja
+          ? `[操作] 学習者が親本文について自由質問をした。質問に正面から答える。親本文の繰り返しは禁止。親を前提に、一段深い情報・具体例・例外・数字・固有名詞・判断基準を足す。`
+          : `[Operation] The learner asked a free-form question about the parent text. Answer directly. Do not repeat the parent. Build on it with deeper information, examples, exceptions, numbers, proper nouns, and criteria.`)
     );
   } else {
     if (req.grandparentContent) {
-      parts.push(`[背景文脈 (参考程度)]\n${truncate(req.grandparentContent, 200)}`);
+      parts.push(`${ja ? "[背景文脈 (参考程度)]" : "[Background context (for reference)]"}\n${truncate(req.grandparentContent, 200)}`);
     }
-    parts.push(`[親ノード本文 (この中からスパンが選択された)]\n${req.parentContent}`);
-    parts.push(`[選択スパン] "${req.selectedSpan}"`);
+    parts.push(`${ja ? "[親ノード本文 (この中からスパンが選択された)]" : "[Parent node text (span selected from this)]"}\n${req.parentContent}`);
+    parts.push(`${ja ? "[選択スパン]" : "[Selected span]"} "${req.selectedSpan}"`);
     parts.push(
       req.operation === "what"
-        ? `[操作] What is it — まず「${req.selectedSpan}」が一般にどういう概念・制度・仕組みかを1〜2文で端的に説明する（初学者が辞書を引かなくて済む程度）。次に、親本文の文脈でそれが具体的にどう使われている・どう効いているかを掘り下げる。構成要素、関係者、発生時期、使われる場面、似ているが違う概念のうち少なくとも2つを入れる。親に出ていない固有名詞・数値・制度名・部品名・具体例を必ず足す。`
-        : `[操作] Why is it — 親本文の文脈で、なぜ「${req.selectedSpan}」がそうなるのかを掘り下げる。背後にある原因や力学を名指しする。原因、条件、制約、インセンティブ、例外、失敗条件のうち少なくとも3つをつなげて説明する。抽象的な「影響がある」「重要だから」ではなく、誰が・何を・どの条件で・どう変えるのかを書く。`
+        ? (ja
+          ? `[操作] What is it — まず「${req.selectedSpan}」が一般にどういう概念・制度・仕組みかを1〜2文で端的に説明する（初学者が辞書を引かなくて済む程度）。次に、親本文の文脈でそれが具体的にどう使われている・どう効いているかを掘り下げる。構成要素、関係者、発生時期、使われる場面、似ているが違う概念のうち少なくとも2つを入れる。親に出ていない固有名詞・数値・制度名・部品名・具体例を必ず足す。`
+          : `[Operation] What is it — First explain in 1-2 sentences what "${req.selectedSpan}" generally is as a concept, institution, or mechanism (enough that a beginner doesn't need to look it up). Then dig into how it specifically works or matters in the context of the parent text. Include at least 2 of: components, stakeholders, timeline, use cases, or concepts that look similar but differ. Add proper nouns, numbers, institution names, part names, or concrete examples not present in the parent.`)
+        : (ja
+          ? `[操作] Why is it — 親本文の文脈で、なぜ「${req.selectedSpan}」がそうなるのかを掘り下げる。背後にある原因や力学を名指しする。原因、条件、制約、インセンティブ、例外、失敗条件のうち少なくとも3つをつなげて説明する。抽象的な「影響がある」「重要だから」ではなく、誰が・何を・どの条件で・どう変えるのかを書く。`
+          : `[Operation] Why is it — Dig into why "${req.selectedSpan}" is the way it is in the context of the parent text. Name the underlying causes and dynamics. Connect at least 3 of: causes, conditions, constraints, incentives, exceptions, or failure conditions. Instead of abstract statements like "has an impact" or "is important", write who does what, under what conditions, and what changes.`)
     );
   }
   return parts.join("\n\n");
@@ -79,15 +96,14 @@ async function* mockStream(req: ExpandRequest): AsyncGenerator<string> {
   const label =
     req.operation === "what" ? "What is it" :
     req.operation === "why" ? "Why is it" :
-    req.operation === "ask" ? `質問「${req.question}」` : "Root";
+    req.operation === "ask" ? `Ask "${req.question}"` : "Root";
   const text =
-    `（モック応答 — OPENAI_API_KEY を .env.local に設定すると実際のLLM応答になります）\n\n` +
-    `「${req.selectedSpan}」についての ${label} の説明がここにストリーミングされます。` +
-    `本番では、ツリー概要・親ノード本文・選択スパンをプロンプトに含めて、` +
-    `選択概念と元文脈の関係まで踏み込んだ説明が生成されます。` +
-    `たとえば単なる辞書的定義ではなく、この文脈でなぜその概念が登場するのか、` +
-    `何がそれを可能にしているのか、までを300〜500字で簡潔に答えます。` +
-    `このモックはUIの手触り（ピル→ノードが生える→ストリーミングで本文が埋まる）を確認するためのものです。`;
+    `(Mock response — set OPENAI_API_KEY in .env.local for real LLM responses)\n\n` +
+    `An explanation of "${req.selectedSpan}" via ${label} would stream here. ` +
+    `In production, the tree overview, parent text, and selected span are included in the prompt ` +
+    `to generate an explanation that goes beyond a dictionary definition — covering why this concept ` +
+    `appears in context, what makes it possible, and what tensions remain, in 200-400 words. ` +
+    `This mock is for testing the UI flow (pill -> node spawns -> text streams in).`;
   for (let i = 0; i < text.length; i += 4) {
     yield text.slice(i, i + 4);
     await new Promise((r) => setTimeout(r, 20));
@@ -123,31 +139,39 @@ export async function POST(request: Request) {
   if (
     typeof body.selectedSpan !== "string" ||
     body.selectedSpan.length > 500 ||
-    // ask はスパンなし (空文字) を許す。それ以外はスパン必須
     (!body.selectedSpan && !isAsk) ||
     !["root", "what", "why", "ask"].includes(body.operation) ||
-    // ask は質問文必須
     (isAsk && (typeof body.question !== "string" || !body.question.trim() || body.question.length > 1000)) ||
     !Array.isArray(body.pathSummaries) ||
-    !body.pathSummaries.every((s) => typeof s === "string") ||
+    body.pathSummaries.length > 50 ||
+    !body.pathSummaries.every((s) => typeof s === "string" && s.length <= 200) ||
     typeof body.parentContent !== "string" ||
-    (body.grandparentContent !== null && typeof body.grandparentContent !== "string")
+    body.parentContent.length > 8000 ||
+    (body.grandparentContent !== null && typeof body.grandparentContent !== "string") ||
+    (typeof body.grandparentContent === "string" && body.grandparentContent.length > 4000)
   ) {
     return new Response("invalid request", { status: 400 });
   }
 
-  // ログインユーザーにはノード生成数の総量制を適用 (SECURITY DEFINER関数でアトミックに消費)
+  // Normalize lang
+  if (body.lang !== "ja") body.lang = "en";
+
   const auth = await getRequestUser();
   if (auth) {
     const check = await consumeNodeQuota(auth.supabase, auth.user);
     if (!check.ok) {
-      return Response.json({ error: check.reason }, { status: 402 });
+      const reason = body.lang === "en"
+        ? "Monthly node limit reached. Resets next month."
+        : check.reason;
+      return Response.json({ error: reason }, { status: 402 });
     }
   } else if (process.env.NODE_ENV === "production") {
-    // 未認証はIPベースの簡易レート制限 (クライアント側ゲスト枠の直叩き回避への保険)
-    if (!checkGuestRateLimit(getClientIp(request))) {
+    if (!(await checkGuestRateLimit(getClientIp(request)))) {
       return Response.json(
-        { error: "お試し枠を使い切りました。ログイン（無料）すると続けられます。" },
+        { error: body.lang === "ja"
+          ? "お試し枠を使い切りました。ログイン（無料）すると続けられます。"
+          : "Trial exhausted. Sign in (free) to continue."
+        },
         { status: 402 }
       );
     }

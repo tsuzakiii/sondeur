@@ -247,6 +247,19 @@ export function deleteTree(treeId: string) {
   emit();
 }
 
+export function setShared(treeId: string, shared: boolean) {
+  load();
+  const tree = state.trees[treeId];
+  if (!tree) return;
+  state = {
+    trees: {
+      ...state.trees,
+      [treeId]: { ...tree, shared },
+    },
+  };
+  emit();
+}
+
 // ---- selectors ----
 
 export function childrenOf(tree: Tree, nodeId: string): SondeurNode[] {

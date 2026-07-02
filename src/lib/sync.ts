@@ -43,6 +43,7 @@ interface TreeRow {
   root_node_id: string | null;
   created_at: string;
   updated_at: string;
+  shared?: boolean;
 }
 
 interface NodeRow {
@@ -171,6 +172,7 @@ export async function startSync(uid: string) {
       nodes: {},
       createdAt: Date.parse(r.created_at),
       updatedAt: Date.parse(r.updated_at),
+      shared: r.shared ?? false,
     };
   }
   for (const r of (nodeRows ?? []) as NodeRow[]) {

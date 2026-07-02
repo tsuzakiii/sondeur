@@ -1,25 +1,28 @@
 export const runtime = "nodejs";
-// ISR: レスポンス自体を1日キャッシュする (サーバーレスでもLLM呼び出しは1日1回に抑えられる)
 export const revalidate = 86400;
 
-const FALLBACK = [
+const FALLBACK_EN = [
+  "How does the LE-9 engine differ from the SSME?",
+  "How does NISA's tax advantage work?",
+  "What's the difference between Transformer and Mamba?",
+];
+
+const FALLBACK_JA = [
   "LE-9エンジンとSSMEの違いは？",
   "NISAの税制優遇はどういう仕組み？",
   "TransformerとMambaは何がどう違う？",
 ];
 
-// NHKの公開RSS (無料・キー不要)。分野の異なる3カテゴリ
 const NHK_FEEDS = [
-  { url: "https://www.nhk.or.jp/rss/news/cat3.xml", label: "科学文化" },
-  { url: "https://www.nhk.or.jp/rss/news/cat5.xml", label: "経済" },
-  { url: "https://www.nhk.or.jp/rss/news/cat6.xml", label: "国際" },
+  { url: "https://www.nhk.or.jp/rss/news/cat3.xml", label: "Science/Culture" },
+  { url: "https://www.nhk.or.jp/rss/news/cat5.xml", label: "Economy" },
+  { url: "https://www.nhk.or.jp/rss/news/cat6.xml", label: "International" },
 ];
 
 function todayJst(): string {
   return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date());
 }
 
-/** RSSから<item><title>を抽出 (依存なしの簡易パース) */
 function parseTitles(xml: string, limit: number): string[] {
   const titles: string[] = [];
   const items = xml.split("<item>").slice(1);
@@ -36,7 +39,6 @@ async function fetchHeadlines(): Promise<{ label: string; titles: string[] }[]> 
     NHK_FEEDS.map(async (feed) => {
       const res = await fetch(feed.url, {
         signal: AbortSignal.timeout(8000),
-        // no-store にするとルートが動的化してISRが効かなくなるので、fetchも日次キャッシュ
         next: { revalidate: 86400 },
       });
       if (!res.ok) throw new Error(`${feed.url} -> ${res.status}`);
@@ -62,9 +64,9 @@ function parseSuggestions(text: string): string[] | null {
   }
 }
 
-/** 見出し→概念質問への変換 (検索なし・低reasoning・1日1回だけ呼ばれる) */
 async function headlinesToQuestions(
-  feeds: { label: string; titles: string[] }[]
+  feeds: { label: string; titles: string[] }[],
+  lang: string
 ): Promise<string[]> {
   const { default: OpenAI } = await import("openai");
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -72,10 +74,14 @@ async function headlinesToQuestions(
   const headlines = feeds
     .map((f) => `[${f.label}]\n${f.titles.map((t) => `- ${t}`).join("\n")}`)
     .join("\n\n");
-  const res = await client.responses.create({
-    model,
-    instructions: "あなたは学習サービス Sondeur のサジェスト生成器。",
-    input: `以下は本日のニュース見出し。ここから「深掘りしたくなる問い」を3つ作れ。
+
+  const ja = lang === "ja";
+  const instruction = ja
+    ? "あなたは学習サービス Sondeur のサジェスト生成器。"
+    : "You are the suggestion generator for Sondeur, a learning service.";
+
+  const prompt = ja
+    ? `以下は本日のニュース見出し。ここから「深掘りしたくなる問い」を3つ作れ。
 
 ${headlines}
 
@@ -86,7 +92,24 @@ ${headlines}
 - 固有名詞（企業名・製品名・人名・国名）を入れて、今日の出来事だとわかるようにする
 - それぞれ35字以内、日本語、疑問文、「？」で終わる
 - 異なるカテゴリから1つずつ
-- 出力はJSON配列のみ: ["質問1","質問2","質問3"]`,
+- 出力はJSON配列のみ: ["質問1","質問2","質問3"]`
+    : `Below are today's news headlines. Generate 3 questions that invite deeper exploration.
+
+${headlines}
+
+Requirements:
+- Keep specific events from the headlines while framing them as "why?" or "how?" questions
+  Good: "Why did the US government request blocking overseas access to Fable 5?" "How can Toyota mass-produce solid-state batteries?"
+  Bad: "Why can governments stop AI?" "How does battery tech evolve?" (too abstract — keep specific proper nouns and events)
+- Include proper nouns (company names, product names, people, countries) so the question is clearly about today's news
+- Each question under 80 characters, in English, ending with "?"
+- One from each category
+- Output JSON array only: ["question1","question2","question3"]`;
+
+  const res = await client.responses.create({
+    model,
+    instructions: instruction,
+    input: prompt,
     reasoning: { effort: "low" },
   });
   const parsed = parseSuggestions(res.output_text ?? "");
@@ -94,20 +117,36 @@ ${headlines}
   return parsed;
 }
 
-export async function GET() {
+const cache = new Map<string, { date: string; suggestions: string[]; source: string }>();
+
+export async function GET(request: Request) {
   const date = todayJst();
+  const url = new URL(request.url);
+  const lang = url.searchParams.get("lang") === "ja" ? "ja" : "en";
+  const fallback = lang === "ja" ? FALLBACK_JA : FALLBACK_EN;
+  const cacheKey = `${date}:${lang}`;
+
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    return Response.json(cached);
+  }
+
   try {
     const feeds = await fetchHeadlines();
     if (feeds.length === 0) throw new Error("no headlines");
     if (!process.env.OPENAI_API_KEY) {
-      // LLMなしでも見出しベースの素朴なサジェストは出せる
       const raw = feeds.flatMap((f) => f.titles.slice(0, 1)).slice(0, 3);
-      return Response.json({ date, suggestions: raw.map((t) => `${t} とは？`), source: "rss-raw" });
+      const suffix = lang === "ja" ? " とは？" : " — what happened?";
+      const result = { date, suggestions: raw.map((t) => `${t}${suffix}`), source: "rss-raw" };
+      cache.set(cacheKey, result);
+      return Response.json(result);
     }
-    const suggestions = await headlinesToQuestions(feeds);
-    return Response.json({ date, suggestions, source: "rss+llm" });
+    const suggestions = await headlinesToQuestions(feeds, lang);
+    const result = { date, suggestions, source: "rss+llm" };
+    cache.set(cacheKey, result);
+    return Response.json(result);
   } catch (err) {
     console.error("[suggestions]", err);
-    return Response.json({ date, suggestions: FALLBACK, source: "fallback" });
+    return Response.json({ date, suggestions: fallback, source: "fallback" });
   }
 }

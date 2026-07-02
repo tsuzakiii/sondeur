@@ -1,30 +1,48 @@
 /**
- * 未認証リクエストへの簡易レート制限 (IPベース、インスタンス内メモリ)。
- * クライアント側のゲストゲート (10ノード) を直叩きで回避された場合の保険。
- * サーバーレスではインスタンス毎にリセットされるため完全ではないが、
- * 「公開URLに対する無料生成の蛇口」を絞る目的には十分。
+ * 未認証リクエストへのレート制限 (IPハッシュベース、Supabase永続化)。
+ * サーバーレスインスタンスのライフサイクルに依存しない。
  */
 
-const WINDOW_MS = 24 * 60 * 60 * 1000;
-const MAX_PER_WINDOW = 15; // ゲスト枠10 + 余裕
+import { createClient } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/nextjs";
 
-const hits = new Map<string, { count: number; windowStart: number }>();
+const DAILY_LIMIT = 15;
 
-export function checkGuestRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = hits.get(ip);
-  if (!entry || now - entry.windowStart > WINDOW_MS) {
-    hits.set(ip, { count: 1, windowStart: now });
+let _serviceClient: ReturnType<typeof createClient> | null = null;
+
+function getServiceClient() {
+  if (_serviceClient) return _serviceClient;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) return null;
+  _serviceClient = createClient(url, key);
+  return _serviceClient;
+}
+
+async function hashIp(ip: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(ip);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export async function checkGuestRateLimit(ip: string): Promise<boolean> {
+  const supabase = getServiceClient();
+  if (!supabase) return true;
+
+  const ipHash = await hashIp(ip);
+  const { data: allowed, error } = await (supabase.rpc as Function)("consume_guest_quota", {
+    p_ip_hash: ipHash,
+    p_limit: DAILY_LIMIT,
+  });
+  if (error) {
+    console.error("[guest-rate-limit] RPC failed, allowing request", error);
+    Sentry.captureException(error); // fail-openなので実際の失敗頻度を監視する
     return true;
   }
-  entry.count++;
-  // 肥大化防止
-  if (hits.size > 10000) {
-    for (const [k, v] of hits) {
-      if (now - v.windowStart > WINDOW_MS) hits.delete(k);
-    }
-  }
-  return entry.count <= MAX_PER_WINDOW;
+  return !!allowed;
 }
 
 export function getClientIp(request: Request): string {

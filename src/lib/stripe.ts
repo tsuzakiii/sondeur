@@ -26,11 +26,11 @@ export function priceIdForPlan(plan: "standard" | "pro"): string | undefined {
 
 /**
  * RLSを越えて profiles を更新するためのサービスクライアント (webhook専用)。
- * SUPABASE_SERVICE_ROLE_KEY はサーバー環境変数のみ。クライアントに露出させないこと。
+ * SUPABASE_SECRET_KEY はサーバー環境変数のみ。クライアントに露出させないこと。
  */
 export function getServiceSupabase(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) return null;
   return createClient(url, key, { auth: { persistSession: false } });
 }

@@ -117,6 +117,31 @@ body {
   animation: fade-up 0.4s ease-out both;
 }
 
+@keyframes ring-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  55% {
+    transform: scale(0.95);
+  }
+  72% {
+    transform: scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.ring-pop {
+  animation: ring-pop 0.55s ease-out both;
+}
+
+
 /* スクロールバーを控えめに */
 *::-webkit-scrollbar {
   width: 8px;

@@ -29,20 +29,16 @@ export interface Tree {
   nodes: Record<string, SondeurNode>;
   createdAt: number;
   updatedAt: number;
+  shared?: boolean;
 }
 
 export interface ExpandRequest {
-  /** ルートからのパス上のノード要約 (各50字程度) */
   pathSummaries: string[];
-  /** 親ノード本文 */
   parentContent: string;
-  /** 祖父ノード本文 (あれば) */
   grandparentContent: string | null;
-  /** 選択スパン (root の場合は質問文そのもの、span なしの ask は "") */
   selectedSpan: string;
-  /** ask の場合のユーザーの自由質問文 */
   question?: string | null;
-  /** 親ノードID (root 以外)。ログイン時のプラン制限チェックに使う */
   parentId?: string | null;
   operation: EdgeType;
+  lang?: string;
 }
