@@ -4,7 +4,8 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
-import type { SondeurNode, Tree } from "@/lib/types";
+import { buildSegments, type ChildEdge } from "@/lib/segments";
+import type { Tree } from "@/lib/types";
 import type { ReactNode } from "react";
 
 const GraphView = dynamic(() => import("@/components/GraphView"), { ssr: false });
@@ -37,52 +38,11 @@ function renderWithCitations(text: string): ReactNode[] {
   return parts;
 }
 
-type ChildEdge = "what" | "why" | "ask";
-
-interface Segment {
-  text: string;
-  start: number;
-  childId: string | null;
-  childEdge: ChildEdge | null;
-}
-
 const HIGHLIGHT_CLASS: Record<ChildEdge, string> = {
   what: "bg-navy/10 text-navy underline decoration-navy/50 hover:bg-navy/20",
   why: "bg-wine/10 text-wine underline decoration-wine/50 decoration-dashed hover:bg-wine/20",
   ask: "bg-gold/15 text-gold underline decoration-gold/60 decoration-dotted hover:bg-gold/25",
 };
-
-function childrenOf(tree: Tree, nodeId: string): SondeurNode[] {
-  return Object.values(tree.nodes)
-    .filter((n) => n.parentId === nodeId)
-    .sort((a, b) => a.createdAt - b.createdAt);
-}
-
-function buildSegments(tree: Tree, node: SondeurNode): Segment[] {
-  const children = childrenOf(tree, node.id).filter(
-    (c) => c.spanStart >= 0 && c.spanEnd <= node.content.length && c.spanStart < c.spanEnd
-  );
-  const sorted = [...children].sort((a, b) => a.spanStart - b.spanStart);
-  const segs: Segment[] = [];
-  let cursor = 0;
-  for (const c of sorted) {
-    if (c.spanStart < cursor) continue;
-    if (c.spanStart > cursor) {
-      segs.push({ text: node.content.slice(cursor, c.spanStart), start: cursor, childId: null, childEdge: null });
-    }
-    segs.push({
-      text: node.content.slice(c.spanStart, c.spanEnd),
-      start: c.spanStart,
-      childId: c.id,
-      childEdge: c.edgeType as ChildEdge,
-    });
-    cursor = c.spanEnd;
-  }
-  if (cursor < node.content.length) {
-    segs.push({ text: node.content.slice(cursor), start: cursor, childId: null, childEdge: null });
-  }
-  return segs;
-}
 
 export default function SharedTreeView({ tree }: { tree: Tree }) {
   const { t } = useI18n();

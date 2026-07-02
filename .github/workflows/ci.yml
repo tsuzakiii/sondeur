@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # 環境変数なしで通ることを確認済み (Supabase/Stripe/Sentry は全て lazy 初期化)
+      - name: Build
+        run: npm run build
+
+      # NOTE: lint は既存コードに react-hooks 系エラーが残っているため CI に含めていない。
+      # 既存エラーを解消したら `npm run lint` の step を追加すること。

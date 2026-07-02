@@ -205,7 +205,8 @@ const ja: Dict = {
   "lang.title": "言語",
 };
 
-const dicts: Record<Locale, Dict> = { en, ja };
+/** テスト (キー網羅性チェック) 用に公開 */
+export const dicts: Record<Locale, Dict> = { en, ja };
 
 interface I18nContextValue {
   locale: Locale;

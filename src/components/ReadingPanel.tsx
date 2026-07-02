@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { childrenOf } from "@/lib/store";
 import { regenerateNode, retryIfQuotaError } from "@/lib/expand";
 import { useI18n } from "@/lib/i18n";
+import { buildSegments, type ChildEdge, type Segment } from "@/lib/segments";
 import type { ReactNode } from "react";
 import type { SondeurNode, Tree } from "@/lib/types";
 
@@ -46,15 +46,6 @@ interface PillState {
   asking: boolean;
 }
 
-type ChildEdge = "what" | "why" | "ask";
-
-interface Segment {
-  text: string;
-  start: number;
-  childId: string | null;
-  childEdge: ChildEdge | null;
-}
-
 const HIGHLIGHT_CLASS: Record<ChildEdge, string> = {
   what: "bg-navy/10 text-navy underline decoration-navy/50 hover:bg-navy/20",
   why: "bg-wine/10 text-wine underline decoration-wine/50 decoration-dashed hover:bg-wine/20",
@@ -91,31 +82,7 @@ export default function ReadingPanel({
   const [nodeQuestion, setNodeQuestion] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const segments: Segment[] = useMemo(() => {
-    const children = childrenOf(tree, node.id).filter(
-      (c) => c.spanStart >= 0 && c.spanEnd <= node.content.length && c.spanStart < c.spanEnd
-    );
-    const sorted = [...children].sort((a, b) => a.spanStart - b.spanStart);
-    const segs: Segment[] = [];
-    let cursor = 0;
-    for (const c of sorted) {
-      if (c.spanStart < cursor) continue;
-      if (c.spanStart > cursor) {
-        segs.push({ text: node.content.slice(cursor, c.spanStart), start: cursor, childId: null, childEdge: null });
-      }
-      segs.push({
-        text: node.content.slice(c.spanStart, c.spanEnd),
-        start: c.spanStart,
-        childId: c.id,
-        childEdge: c.edgeType as ChildEdge,
-      });
-      cursor = c.spanEnd;
-    }
-    if (cursor < node.content.length) {
-      segs.push({ text: node.content.slice(cursor), start: cursor, childId: null, childEdge: null });
-    }
-    return segs;
-  }, [tree, node]);
+  const segments: Segment[] = useMemo(() => buildSegments(tree, node), [tree, node]);
 
   const handleSelection = useCallback(() => {
     const container = contentRef.current;
