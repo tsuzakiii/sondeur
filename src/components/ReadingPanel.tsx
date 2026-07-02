@@ -2,8 +2,40 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { childrenOf } from "@/lib/store";
-import { retryIfQuotaError } from "@/lib/expand";
+import { regenerateNode, retryIfQuotaError } from "@/lib/expand";
+import { useI18n } from "@/lib/i18n";
+import type { ReactNode } from "react";
 import type { SondeurNode, Tree } from "@/lib/types";
+
+const CITE_RE = /\(?\[([^\]]+)\]\((https?:\/\/[^)]+)\)\)?/g;
+
+function renderWithCitations(text: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(CITE_RE)) {
+    const idx = m.index!;
+    if (idx > last) parts.push(text.slice(last, idx));
+    const label = m[1];
+    const url = m[2].replace(/\?utm_source=openai$/, "");
+    parts.push(
+      <a
+        key={idx}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="mx-0.5 inline-flex items-center gap-0.5 rounded-md border border-navy/20 bg-navy/5 px-1.5 py-0.5 align-baseline text-[10px] leading-none text-navy/70 no-underline transition-colors hover:bg-navy/10 hover:text-navy"
+      >
+        <span className="text-[9px]">&#8599;</span>
+        {label}
+      </a>
+    );
+    last = idx + m[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
 
 interface PillState {
   x: number;
@@ -11,7 +43,6 @@ interface PillState {
   span: string;
   start: number;
   end: number;
-  /** ✏️ 質問を押してインライン入力モードに切り替わったか */
   asking: boolean;
 }
 
@@ -20,7 +51,6 @@ type ChildEdge = "what" | "why" | "ask";
 interface Segment {
   text: string;
   start: number;
-  /** この区間を掘った既存の子ノード (あれば) */
   childId: string | null;
   childEdge: ChildEdge | null;
 }
@@ -31,10 +61,10 @@ const HIGHLIGHT_CLASS: Record<ChildEdge, string> = {
   ask: "bg-gold/15 text-gold underline decoration-gold/60 decoration-dotted hover:bg-gold/25",
 };
 
-const HIGHLIGHT_TITLE: Record<ChildEdge, string> = {
-  what: "What で掘り済み — クリックで移動",
-  why: "Why で掘り済み — クリックで移動",
-  ask: "質問済み — クリックで移動",
+const HIGHLIGHT_TITLE_KEY: Record<ChildEdge, string> = {
+  what: "panel.highlightWhat",
+  why: "panel.highlightWhy",
+  ask: "panel.highlightAsk",
 };
 
 export default function ReadingPanel({
@@ -49,28 +79,27 @@ export default function ReadingPanel({
   node: SondeurNode;
   onClose: () => void;
   onExpand: (op: "what" | "why", span: string, start: number, end: number) => void;
-  /** 自由質問。span が空文字ならノード全体への質問 */
   onAsk: (question: string, span: string, start: number, end: number) => void;
   onJumpToNode: (id: string) => void;
 }) {
+  const { t } = useI18n();
   const contentRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const pillInputRef = useRef<HTMLInputElement>(null);
   const [pill, setPill] = useState<PillState | null>(null);
   const [pillQuestion, setPillQuestion] = useState("");
   const [nodeQuestion, setNodeQuestion] = useState("");
+  const [copied, setCopied] = useState(false);
 
-  // 掘り済みスパン (親本文内オフセット持ちの子ノード) → ハイライト区間
   const segments: Segment[] = useMemo(() => {
     const children = childrenOf(tree, node.id).filter(
       (c) => c.spanStart >= 0 && c.spanEnd <= node.content.length && c.spanStart < c.spanEnd
     );
-    // 重複・入れ子は先勝ちで平坦化
     const sorted = [...children].sort((a, b) => a.spanStart - b.spanStart);
     const segs: Segment[] = [];
     let cursor = 0;
     for (const c of sorted) {
-      if (c.spanStart < cursor) continue; // 重なりはスキップ
+      if (c.spanStart < cursor) continue;
       if (c.spanStart > cursor) {
         segs.push({ text: node.content.slice(cursor, c.spanStart), start: cursor, childId: null, childEdge: null });
       }
@@ -107,16 +136,17 @@ export default function ReadingPanel({
       setPill((p) => (p?.asking ? p : null));
       return;
     }
-    // コンテナ先頭から選択開始までのテキスト長 = オフセット
     const pre = range.cloneRange();
     pre.selectNodeContents(container);
     pre.setEnd(range.startContainer, range.startOffset);
     const start = pre.toString().length;
     const rect = range.getBoundingClientRect();
     const panelRect = panel.getBoundingClientRect();
+    // タッチ端末はネイティブの選択ハンドル/コピーメニューが選択範囲の上に出るので、ピルは下に出す
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
     setPill({
       x: rect.left + rect.width / 2 - panelRect.left,
-      y: rect.top - panelRect.top,
+      y: coarse ? rect.bottom - panelRect.top + 52 : rect.top - panelRect.top,
       span: text,
       start,
       end: start + text.length,
@@ -125,28 +155,41 @@ export default function ReadingPanel({
     setPillQuestion("");
   }, []);
 
-  // 表示ノードが切り替わったら古いピルを必ず捨てる (staleオフセット防止)
-  // クオータエラーのノードを開いたら自動再生成
   useEffect(() => {
     setPill(null);
     setPillQuestion("");
     setNodeQuestion("");
+    setCopied(false);
     retryIfQuotaError(tree, node.id);
   }, [node.id]);
 
   useEffect(() => {
     const onDocSelectionChange = () => {
       const sel = window.getSelection();
-      // 入力モード中は選択が消えてもピルを維持する
       if (!sel || sel.isCollapsed) setPill((p) => (p?.asking ? p : null));
     };
     document.addEventListener("selectionchange", onDocSelectionChange);
     return () => document.removeEventListener("selectionchange", onDocSelectionChange);
   }, []);
 
+  // タッチ端末: 長押し選択後にハンドルで範囲を調整すると touchend が来ないので、
+  // selectionchange を debounce してピルを追従させる
+  useEffect(() => {
+    if (!window.matchMedia("(pointer: coarse)").matches) return;
+    let timer: number | undefined;
+    const onSel = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(handleSelection, 350);
+    };
+    document.addEventListener("selectionchange", onSel);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("selectionchange", onSel);
+    };
+  }, [handleSelection]);
+
   const validPill = (): PillState | null => {
     if (!pill) return null;
-    // オフセットが現在の本文と一致しない場合は発火しない (staleオフセット防止)
     if (node.content.slice(pill.start, pill.end) !== pill.span) {
       setPill(null);
       return null;
@@ -180,17 +223,17 @@ export default function ReadingPanel({
   };
 
   const edgeLabel =
-    node.edgeType === "root" ? "問い"
+    node.edgeType === "root" ? t("panel.edgeRoot")
     : node.edgeType === "what" ? "What is it"
     : node.edgeType === "why" ? "Why is it"
-    : "質問";
+    : t("panel.edgeAsk");
 
   const headerTitle = node.edgeType === "ask" ? node.question ?? node.selectedSpan : node.selectedSpan;
 
   return (
     <div
       ref={panelRef}
-      className="relative flex h-full w-full flex-col border-l border-[#d8dde8] bg-background shadow-[-8px_0_24px_rgba(150,160,180,0.18)]"
+      className="relative flex h-full w-full flex-col border-l border-[#d8dde8] bg-background shadow-[-8px_0_24px_rgba(150,160,180,0.18)] max-md:rounded-t-2xl max-md:border-l-0 max-md:border-t max-md:shadow-[0_-8px_24px_rgba(150,160,180,0.18)]"
     >
       <div className="flex items-start justify-between gap-2 border-b border-[#d8dde8] px-5 py-3.5">
         <div className="min-w-0">
@@ -207,7 +250,7 @@ export default function ReadingPanel({
           >
             {edgeLabel}
             {node.edgeType === "ask" && node.selectedSpan ? (
-              <span className="ml-2 font-normal text-slate-400">「{node.selectedSpan}」について</span>
+              <span className="ml-2 font-normal text-slate-400">{t("panel.about", { span: node.selectedSpan })}</span>
             ) : null}
           </div>
           <div className="truncate text-sm font-medium text-slate-700" title={headerTitle}>
@@ -216,10 +259,10 @@ export default function ReadingPanel({
         </div>
         <button
           onClick={onClose}
-          className="shrink-0 rounded px-2 py-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-          aria-label="閉じる"
+          className="relative flex w-7 shrink-0 items-center justify-center rounded-lg pt-[6px] pb-[8px] text-sm leading-none text-slate-400 transition-colors hover:neu-flat hover:text-slate-600"
+          aria-label={t("panel.close")}
         >
-          ✕
+          <span>✕</span>
         </button>
       </div>
 
@@ -235,13 +278,13 @@ export default function ReadingPanel({
               <span
                 key={seg.start}
                 onClick={() => onJumpToNode(seg.childId!)}
-                title={HIGHLIGHT_TITLE[seg.childEdge!]}
+                title={t(HIGHLIGHT_TITLE_KEY[seg.childEdge!])}
                 className={`cursor-pointer rounded-sm px-0.5 transition-colors ${HIGHLIGHT_CLASS[seg.childEdge!]}`}
               >
-                {seg.text}
+                {renderWithCitations(seg.text)}
               </span>
             ) : (
-              <span key={seg.start}>{seg.text}</span>
+              <span key={seg.start}>{renderWithCitations(seg.text)}</span>
             )
           )}
           {node.status === "streaming" && (
@@ -249,11 +292,37 @@ export default function ReadingPanel({
           )}
         </div>
         {node.status === "error" && node.content.length === 0 && (
-          <div className="mt-4 text-sm text-rose-400">生成に失敗しました。</div>
+          <div className="mt-4 text-sm text-rose-400">{t("panel.generationFailed")}</div>
+        )}
+        {node.status === "done" && node.content.length > 0 && (
+          <div className="mt-4 flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                void navigator.clipboard.writeText(node.content).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                });
+              }}
+              className="rounded p-1 text-slate-400 transition-colors hover:text-slate-600"
+              title={t("panel.copy")}
+            >
+              {copied ? (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+              )}
+            </button>
+            <button
+              onClick={() => regenerateNode(tree, node.id)}
+              className="rounded p-1 text-slate-400 transition-colors hover:text-slate-600"
+              title={t("panel.regenerate")}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+            </button>
+          </div>
         )}
       </div>
 
-      {/* ノード全体への自由質問 */}
       <div className="border-t border-[#d8dde8] px-3 py-2.5">
         <div className="flex gap-2">
           <input
@@ -263,7 +332,7 @@ export default function ReadingPanel({
               if (e.key === "Enter" && !e.nativeEvent.isComposing) fireNodeAsk();
             }}
             disabled={node.status !== "done"}
-            placeholder="この説明について質問…"
+            placeholder={t("panel.questionPlaceholder")}
             className="neu-inset min-w-0 flex-1 rounded-xl px-3.5 py-1.5 text-sm text-slate-700 placeholder-slate-400 outline-none disabled:opacity-40"
           />
           <button
@@ -271,7 +340,7 @@ export default function ReadingPanel({
             disabled={!nodeQuestion.trim() || node.status !== "done"}
             className="shrink-0 rounded-xl bg-gold px-3.5 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-30"
           >
-            質問
+            {t("panel.questionSubmit")}
           </button>
         </div>
       </div>
@@ -284,7 +353,6 @@ export default function ReadingPanel({
             top: Math.max(40, pill.y - 8),
           }}
           onMouseDown={(e) => {
-            // 入力モードでは input にフォーカスが要るので preventDefault しない
             if (!pill.asking) e.preventDefault();
           }}
         >
@@ -298,8 +366,8 @@ export default function ReadingPanel({
                   if (e.key === "Enter" && !e.nativeEvent.isComposing) firePillAsk();
                   if (e.key === "Escape") setPill(null);
                 }}
-                placeholder={`「${pill.span.length > 12 ? pill.span.slice(0, 12) + "…" : pill.span}」について質問…`}
-                className="neu-inset w-64 rounded-full px-3.5 py-1 text-sm text-slate-700 placeholder-slate-400 outline-none"
+                placeholder={t("panel.pillAskPlaceholder", { span: pill.span.length > 12 ? pill.span.slice(0, 12) + "…" : pill.span })}
+                className="neu-inset w-64 rounded-full px-3.5 py-1 text-sm text-slate-700 placeholder-slate-400 outline-none max-md:w-48"
               />
               <button
                 onClick={firePillAsk}
@@ -315,14 +383,14 @@ export default function ReadingPanel({
                 onClick={() => firePill("what")}
                 className="px-4 py-2 text-sm font-semibold text-navy hover:bg-navy/10"
               >
-                What is it
+                What
               </button>
               <div className="w-px bg-[#d8dde8]" />
               <button
                 onClick={() => firePill("why")}
                 className="px-4 py-2 text-sm font-semibold text-wine hover:bg-wine/10"
               >
-                Why is it
+                Why
               </button>
               <div className="w-px bg-[#d8dde8]" />
               <button
@@ -332,7 +400,7 @@ export default function ReadingPanel({
                 }}
                 className="px-4 py-2 text-sm font-semibold text-gold hover:bg-gold/10"
               >
-                質問
+                Ask
               </button>
             </div>
           )}
