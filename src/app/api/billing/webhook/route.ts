@@ -1,4 +1,5 @@
 import type Stripe from "stripe";
+import * as Sentry from "@sentry/nextjs";
 import { getServiceSupabase, getStripe, planFromPriceId } from "@/lib/stripe";
 
 export const runtime = "nodejs";
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
     event = stripe.webhooks.constructEvent(await request.text(), signature, secret);
   } catch (err) {
     console.error("[webhook] signature verification failed", err);
+    Sentry.captureException(err);
     return new Response("invalid signature", { status: 400 });
   }
 
