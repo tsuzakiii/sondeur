@@ -23,11 +23,44 @@ export async function POST(request: Request) {
   if (!price) return Response.json({ error: "price not configured" }, { status: 503 });
 
   // 既存のStripe顧客がいれば再利用 (二重顧客を作らない)
-  const { data: profile } = await auth.supabase
+  const { data: profile, error: profileError } = await auth.supabase
     .from("profiles")
-    .select("stripe_customer_id")
+    .select("plan, stripe_customer_id")
     .eq("id", auth.user.id)
     .single();
+
+  // 二重課金ガードの前提となる読み取りに失敗したら fail-closed (素通りするとガードが無効化される)
+  if (profileError || !profile) {
+    return Response.json({ error: "profile unavailable — try again shortly" }, { status: 503 });
+  }
+
+  // plan ガード: free 以外は billing portal でのプラン変更に誘導する (checkout での二重課金を防ぐ)
+  if (profile.plan && profile.plan !== "free") {
+    return Response.json(
+      { error: "already subscribed — use the billing portal to change plans" },
+      { status: 409 }
+    );
+  }
+
+  // Stripe 側ガード (ベルト&サスペンダー): webhook 遅延等で plan カラムが free のままでも
+  // Stripe 側に生きた subscription が実在すれば防ぐ。canceled / incomplete_expired は終了済み、
+  // incomplete は checkout 未完了の一時状態 (23時間で自動失効) なので対象外
+  if (profile.stripe_customer_id) {
+    const subs = await stripe.subscriptions.list({
+      customer: profile.stripe_customer_id,
+      status: "all",
+      limit: 10,
+    });
+    const live = subs.data.some((s) =>
+      ["active", "trialing", "past_due", "unpaid", "paused"].includes(s.status)
+    );
+    if (live) {
+      return Response.json(
+        { error: "already subscribed — use the billing portal to change plans" },
+        { status: 409 }
+      );
+    }
+  }
 
   const origin = new URL(request.url).origin;
   const session = await stripe.checkout.sessions.create({
