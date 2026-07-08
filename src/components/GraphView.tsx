@@ -6,8 +6,9 @@ import {
   forceCollide,
   forceLink,
   forceManyBody,
-  forceRadial,
   forceSimulation,
+  forceX,
+  forceY,
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force";
@@ -38,6 +39,63 @@ function nodeRadius(depth: number): number {
   // ルートは明確に大きく、どこから木が伸びているか一目でわかるように
   if (depth === 0) return 34;
   return Math.max(9, 20 - (depth - 1) * 3);
+}
+
+// 深さ1段あたりの目標半径 (ウェッジ理想位置の同心円間隔)
+const RING = 130;
+// 最初の葉が真上やや右から生え、時計回りに配る (真横スタートより木らしい)
+const BASE_ROTATION = -Math.PI / 2 + 0.35;
+
+// 各ノードの「理想方角」を計算する。葉に円周上のスロットを in-order で割り当て
+// (部分木 = 連続した角度ウェッジ)、内部ノードは自分の部分木の中央角を取る。
+// 角度は葉数比例なので、アンバランスな実際の木では自然に不均等になる。
+// この方角×深さ半径の理想位置へ弱い力で引き、charge/collide が有機的に揺らす —
+// forceRadial (半径のみ制御・方角は成り行き) と違い、枝の重なり・交差・偏りが出ない。
+function computeWedgeAngles(nodes: SondeurNode[], rootId: string): Map<string, number> {
+  // 親→子マップを一度だけ構築 (毎回の全走査を避ける)。兄弟順は createdAt →
+  // id で安定ソートし、hydration/merge の順序に依らず決定的にする
+  const childrenByParent = new Map<string, SondeurNode[]>();
+  for (const n of nodes) {
+    if (!n.parentId) continue;
+    const list = childrenByParent.get(n.parentId);
+    if (list) list.push(n);
+    else childrenByParent.set(n.parentId, [n]);
+  }
+  for (const list of childrenByParent.values()) {
+    list.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1));
+  }
+
+  // 一回の DFS で葉スロットの範囲 [min, max] を割り当てる
+  const ranges = new Map<string, [number, number]>();
+  let leafIdx = 0;
+  const assign = (id: string): [number, number] => {
+    const kids = childrenByParent.get(id) ?? [];
+    if (kids.length === 0) {
+      const slot = leafIdx;
+      leafIdx += 1;
+      ranges.set(id, [slot, slot]);
+      return [slot, slot];
+    }
+    let mn = Infinity;
+    let mx = -Infinity;
+    for (const k of kids) {
+      const [a, b] = assign(k.id);
+      mn = Math.min(mn, a);
+      mx = Math.max(mx, b);
+    }
+    ranges.set(id, [mn, mx]);
+    return [mn, mx];
+  };
+  assign(rootId);
+
+  // 角度はスロット中心 (slot + 0.5) 基準。内部ノードは部分木の中心角
+  // ((mn+mx)/2 + 0.5) になり、境界基準の半スロット偏りが出ない
+  const total = Math.max(1, leafIdx);
+  const angles = new Map<string, number>();
+  for (const [id, [mn, mx]] of ranges) {
+    angles.set(id, BASE_ROTATION + (((mn + mx) / 2 + 0.5) / total) * Math.PI * 2);
+  }
+  return angles;
 }
 
 export default function GraphView({
@@ -241,6 +299,19 @@ export default function GraphView({
       return Math.max(nodeRadius(d.depth) + 18, (labelChars * 11) / 2 + 8);
     };
 
+    // ウェッジ理想位置 (方角×深さ半径) への弱い引力。構造が変わるたびに角度を
+    // 計算し直すので、枝が増えると既存の枝が滑らかに譲り合って再配分される。
+    // 中心はリサイズで動くため lastCenterRef 経由で読む (RO 側で再設定する)
+    const wedgeAngles = computeWedgeAngles(visibleNodes, tree.rootNodeId);
+    const targetX = (d: SimNode) => {
+      const c = lastCenterRef.current ?? { x: centerX, y: centerY };
+      return c.x + (d.depth === 0 ? 0 : Math.cos(wedgeAngles.get(d.id) ?? 0) * d.depth * RING);
+    };
+    const targetY = (d: SimNode) => {
+      const c = lastCenterRef.current ?? { x: centerX, y: centerY };
+      return c.y + (d.depth === 0 ? 0 : Math.sin(wedgeAngles.get(d.id) ?? 0) * d.depth * RING);
+    };
+
     const sim = forceSimulation<SimNode>(simNodes)
       .force(
         "link",
@@ -249,13 +320,10 @@ export default function GraphView({
           .distance((d) => 80 + nodeRadius((d.source as SimNode).depth))
           .strength(0.7)
       )
-      .force("charge", forceManyBody().strength(-220))
-      .force("center", forceCenter(centerX, centerY).strength(0.04))
-      // 深さに応じた同心円配置: ルートを中心に、深い枝ほど外側のリングへ
-      .force(
-        "radial",
-        forceRadial<SimNode>((d) => d.depth * 130, centerX, centerY).strength(0.35)
-      )
+      .force("charge", forceManyBody().strength(-120))
+      .force("center", forceCenter(centerX, centerY).strength(0.03))
+      .force("tx", forceX<SimNode>(targetX).strength(0.22))
+      .force("ty", forceY<SimNode>(targetY).strength(0.22))
       .force("collide", forceCollide<SimNode>().radius(collideRadius).strength(0.9))
       .alpha(0.6)
       .alphaDecay(0.04);
@@ -331,8 +399,11 @@ export default function GraphView({
       }
       const center = sim.force("center") as ReturnType<typeof forceCenter> | undefined;
       center?.x(next.x).y(next.y);
-      const radial = sim.force("radial") as ReturnType<typeof forceRadial> | undefined;
-      radial?.x(next.x).y(next.y);
+      // forceX/Y はアクセサ評価値をキャッシュするので、新しい中心で再評価させる
+      const tx = sim.force("tx") as ReturnType<typeof forceX<SimNode>> | undefined;
+      tx?.x(targetX);
+      const ty = sim.force("ty") as ReturnType<typeof forceY<SimNode>> | undefined;
+      ty?.y(targetY);
       sim.alpha(0.15).restart();
     });
     // SVG要素はcontent boxを持たずROが発火しないため、親divを監視する
