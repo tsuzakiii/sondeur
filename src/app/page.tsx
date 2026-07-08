@@ -173,7 +173,12 @@ export default function Home() {
               {t(billingNotice === "success" ? "billing.successBody" : "billing.cancelBody")}
             </div>
             <button
-              onClick={() => setBillingNotice(null)}
+              onClick={() => {
+                setBillingNotice(null);
+                // 明示的にユーザーが閉じたので sessionStorage も消す。
+                // これをしないとリロード後に同じ notice が復活する。
+                clearBillingReturnStatus();
+              }}
               className="shrink-0 rounded px-1.5 text-slate-400 hover:text-slate-600"
               aria-label={t("home.close")}
             >

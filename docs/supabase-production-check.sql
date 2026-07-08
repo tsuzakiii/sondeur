@@ -49,5 +49,8 @@ order by grantee, privilege_type;
 
 -- Expected for the two grant result sets above:
 -- - service_role has EXECUTE.
--- - anon and authenticated do not appear.
--- If anon/authenticated appear, migration 0006_guest_quota_grant.sql has not been applied correctly.
+-- - anon, authenticated, and PUBLIC do not appear.
+-- If any of anon / authenticated / PUBLIC appears, migration 0006_guest_quota_grant.sql
+-- has not been applied correctly (or the function was re-created without revoking PUBLIC).
+-- PUBLIC EXECUTE would let anonymous REST callers invoke the RPC even though anon/
+-- authenticated are absent, so it must be verified explicitly.
