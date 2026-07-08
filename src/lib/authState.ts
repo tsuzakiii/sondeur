@@ -12,7 +12,7 @@ import { startSync, stopSync } from "./sync";
 
 export type AuthInfo =
   | { kind: "signedOut" }
-  | { kind: "signedIn"; email: string };
+  | { kind: "signedIn"; userId: string; email: string };
 
 const SIGNED_OUT: AuthInfo = { kind: "signedOut" };
 let authInfo: AuthInfo = SIGNED_OUT;
@@ -30,8 +30,19 @@ export function initAuth() {
   initialized = true;
   supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
-      const next: AuthInfo = { kind: "signedIn", email: session.user.email ?? "" };
-      if (authInfo.kind !== "signedIn" || authInfo.email !== next.email) {
+      const next: AuthInfo = {
+        kind: "signedIn",
+        userId: session.user.id,
+        email: session.user.email ?? "",
+      };
+      if (authInfo.kind === "signedIn" && authInfo.userId !== next.userId) {
+        stopSync({ clearLocal: true });
+      }
+      if (
+        authInfo.kind !== "signedIn" ||
+        authInfo.userId !== next.userId ||
+        authInfo.email !== next.email
+      ) {
         authInfo = next;
         emit();
         void startSync(session.user.id);
@@ -40,8 +51,10 @@ export function initAuth() {
       if (authInfo.kind !== "signedOut") {
         authInfo = SIGNED_OUT;
         emit();
+        stopSync({ clearLocal: true });
+      } else {
+        stopSync();
       }
-      stopSync();
     }
   });
 }

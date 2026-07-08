@@ -1,7 +1,7 @@
 "use client";
 
 import { getSupabase } from "./supabase/client";
-import { getState, hydrate } from "./store";
+import { clearTrees, getState, getStorageOwner, getStoredTreesForOwner, hydrate } from "./store";
 import type { SondeurNode, Tree } from "./types";
 
 /**
@@ -152,6 +152,7 @@ export async function startSync(uid: string) {
   if (!supabase) return;
   const gen = ++generation;
   userId = uid;
+  const localOwner = getStorageOwner();
 
   const [{ data: treeRows, error: tErr }, { data: nodeRows, error: nErr }] = await Promise.all([
     supabase.from("trees").select("*"),
@@ -180,7 +181,12 @@ export async function startSync(uid: string) {
     if (tree) tree.nodes[r.id] = rowToNode(r);
   }
 
-  const local = getState().trees;
+  const local =
+    localOwner === "guest"
+      ? getState().trees
+      : localOwner === uid
+        ? getStoredTreesForOwner(uid)
+        : {};
   const merged: Record<string, Tree> = { ...remote };
   for (const lt of Object.values(local)) {
     const rt = remote[lt.id];
@@ -198,12 +204,13 @@ export async function startSync(uid: string) {
   }
 
   if (gen !== generation) return;
-  hydrate(merged);
+  hydrate(merged, uid);
 }
 
-export function stopSync() {
+export function stopSync(options: { clearLocal?: boolean } = {}) {
   userId = null;
   generation++;
+  if (options.clearLocal) clearTrees("guest");
 }
 
 // ---- write-through hooks ----

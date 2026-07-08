@@ -4,6 +4,8 @@ import { useSyncExternalStore } from "react";
 import type { EdgeType, SondeurNode, Tree } from "./types";
 
 const STORAGE_KEY = "sondeur.trees.v1";
+const STORAGE_OWNER_KEY = "sondeur.trees.owner.v1";
+const GUEST_OWNER = "guest";
 
 interface StoreState {
   trees: Record<string, Tree>;
@@ -11,34 +13,51 @@ interface StoreState {
 
 let state: StoreState = { trees: {} };
 let loaded = false;
+let storageOwner = GUEST_OWNER;
 const listeners = new Set<() => void>();
+
+function normalizeTrees(trees: Record<string, Tree>): Record<string, Tree> {
+  // streaming のまま保存されたノードは中断扱いにする
+  for (const tree of Object.values(trees)) {
+    for (const node of Object.values(tree.nodes)) {
+      if (node.status === "streaming") {
+        node.status = node.content.length > 0 ? "done" : "error";
+      }
+    }
+  }
+  return trees;
+}
+
+function readStoredOwner(): string {
+  if (typeof window === "undefined") return storageOwner;
+  return window.localStorage.getItem(STORAGE_OWNER_KEY) ?? GUEST_OWNER;
+}
+
+function readStoredTrees(): Record<string, Tree> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      return normalizeTrees(JSON.parse(raw) as Record<string, Tree>);
+    }
+  } catch {
+    // 壊れたデータは捨てる扱い
+  }
+  return {};
+}
 
 function load() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const trees = JSON.parse(raw) as Record<string, Tree>;
-      // streaming のまま保存されたノードは中断扱いにする
-      for (const tree of Object.values(trees)) {
-        for (const node of Object.values(tree.nodes)) {
-          if (node.status === "streaming") {
-            node.status = node.content.length > 0 ? "done" : "error";
-          }
-        }
-      }
-      state = { trees };
-    }
-  } catch {
-    // 壊れたデータは捨てる
-    state = { trees: {} };
-  }
+  storageOwner = readStoredOwner();
+  // アカウント所有の保存ツリーは、認証済みの同一ユーザーだと確認できるまで表示しない。
+  state = { trees: storageOwner === GUEST_OWNER ? readStoredTrees() : {} };
 }
 
 function persist() {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state.trees));
+    window.localStorage.setItem(STORAGE_OWNER_KEY, storageOwner);
   } catch {
     // quota 超過などは無視 (メモリ上では動き続ける)
   }
@@ -78,10 +97,31 @@ export function getState(): StoreState {
   return state;
 }
 
-/** リモートから取得した状態で置き換える (ログイン時の同期用) */
-export function hydrate(trees: Record<string, Tree>) {
+/** localStorage 上のツリー所有者。guest または Supabase user id。 */
+export function getStorageOwner(): string {
   load();
+  return storageOwner;
+}
+
+/** 認証済みユーザーの同期処理だけが、所有者確認後に保存ツリーを読む。 */
+export function getStoredTreesForOwner(owner: string): Record<string, Tree> {
+  load();
+  return readStoredOwner() === owner ? readStoredTrees() : {};
+}
+
+/** リモートから取得した状態で置き換える (ログイン時の同期用) */
+export function hydrate(trees: Record<string, Tree>, owner = storageOwner) {
+  load();
+  storageOwner = owner;
   state = { trees };
+  emit();
+}
+
+/** アカウント境界を越えてツリーを見せないため、ローカル状態を空にする。 */
+export function clearTrees(owner = GUEST_OWNER) {
+  load();
+  storageOwner = owner;
+  state = { trees: {} };
   emit();
 }
 
