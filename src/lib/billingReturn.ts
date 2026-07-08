@@ -1,6 +1,6 @@
 export type BillingReturnStatus = "success" | "cancel";
 
-const BILLING_RETURN_KEY = "sondeur.billing.return";
+export const BILLING_RETURN_KEY = "sondeur.billing.return";
 
 function normalize(value: string | null): BillingReturnStatus | null {
   return value === "success" || value === "cancel" ? value : null;

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  BILLING_RETURN_KEY,
   clearBillingReturnStatus,
   readBillingReturnStatus,
   rememberBillingReturnStatus,
@@ -59,7 +60,7 @@ describe("billing return status", () => {
     // というシナリオ: URL 側 (最新の遷移結果) を優先する契約であることを確認する。
     stubBrowser("?billing=success");
     // stubBrowser の後に sessionStorage へ値を仕込む
-    sessionStorage.setItem("sondeur.billing.return", "cancel");
+    sessionStorage.setItem(BILLING_RETURN_KEY, "cancel");
     expect(readBillingReturnStatus()).toBe("success");
   });
 });

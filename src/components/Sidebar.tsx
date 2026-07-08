@@ -68,9 +68,10 @@ export default function Sidebar({
   const [deleteRect, setDeleteRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [deleteExpanded, setDeleteExpanded] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
-  // Sidebar は unmount しないので (page.tsx が !open 分岐で常に描画する)、
-  // Date.now() を 1 分刻みで更新する。lint の `Cannot call impure function during render`
-  // を避けつつ「N 分前 → M 分前」が経時で正しく進むようにする。
+  // Sidebar は unmount しない (この component 内の !open 分岐が早期 return するだけで
+  // 常に mount されている) ので、Date.now() を 1 分刻みで更新する。lint の
+  // `Cannot call impure function during render` を避けつつ「N 分前 → M 分前」が経時で
+  // 正しく進むようにする。
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 60_000);

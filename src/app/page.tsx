@@ -13,7 +13,12 @@ import { GUEST_NODE_LIMIT } from "@/lib/planLimits";
 import { useI18n } from "@/lib/i18n";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { useClientMounted } from "@/lib/useClientMounted";
-import { readBillingReturnStatus, rememberBillingReturnStatus, type BillingReturnStatus } from "@/lib/billingReturn";
+import {
+  clearBillingReturnStatus,
+  readBillingReturnStatus,
+  rememberBillingReturnStatus,
+  type BillingReturnStatus,
+} from "@/lib/billingReturn";
 
 const GraphView = dynamic(() => import("@/components/GraphView"), { ssr: false });
 
@@ -53,7 +58,13 @@ export default function Home() {
       window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
     }
 
-    const timer = window.setTimeout(() => setBillingNotice(null), billingNotice === "success" ? 9000 : 6000);
+    const timer = window.setTimeout(() => {
+      setBillingNotice(null);
+      // sessionStorage 側もこの時点で捨てる。以前は AuthFooter の auth 遷移でしか
+      // clear されず、モバイル (sidebar 折り畳みで AuthFooter 未描画) では
+      // リロードのたびに古い notice が復活していた。
+      clearBillingReturnStatus();
+    }, billingNotice === "success" ? 9000 : 6000);
     return () => window.clearTimeout(timer);
   }, [billingNotice]);
 
