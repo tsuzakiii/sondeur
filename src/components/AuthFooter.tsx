@@ -7,26 +7,15 @@ import { signInWithEmail, signOut, useAuthInfo } from "@/lib/authState";
 import { PLAN_NODE_LIMITS } from "@/lib/planLimits";
 import { useI18n, useLocale, LOCALES } from "@/lib/i18n";
 import { clearBillingReturnStatus, readBillingReturnStatus } from "@/lib/billingReturn";
+import {
+  clearAllCachedProfiles,
+  loadCachedProfile,
+  resolveDisplayProfile,
+  saveCachedProfile,
+  type CachedProfile,
+} from "./authFooterCache";
 
 const PLAN_LABEL: Record<string, string> = { free: "Free", standard: "Standard", pro: "Pro" };
-const PROFILE_CACHE_KEY = "sondeur.profile.cache";
-
-type CachedProfile = { plan: string; used: number; hasStripe: boolean; monthKey: string };
-
-function loadCachedProfile(): CachedProfile | null {
-  try {
-    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
-
-function saveCachedProfile(p: CachedProfile) {
-  try { localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(p)); } catch {}
-}
-
-function clearCachedProfile() {
-  try { localStorage.removeItem(PROFILE_CACHE_KEY); } catch {}
-}
 
 function currentMonthKey(): string {
   const d = new Date();
@@ -74,13 +63,9 @@ export default function AuthFooter() {
   const [email, setEmail] = useState("");
   const [asking, setAsking] = useState(false);
   const [sent, setSent] = useState(false);
-  const [profile, setProfile] = useState<CachedProfile | null>(() => {
-    if (typeof window === "undefined") return null;
-    const cached = loadCachedProfile();
-    if (!cached) return null;
-    const mk = currentMonthKey();
-    return { ...cached, used: cached.monthKey === mk ? cached.used : 0 };
-  });
+  // 初期値は必ず null。auth が確定するまでは前ユーザーのキャッシュを一切表示しない。
+  // signed-in 遷移時に auth.userId で scope されたキャッシュを読み込む (useEffect 側)。
+  const [profile, setProfile] = useState<CachedProfile | null>(null);
   const [popupOpen, setPopupOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [showPlans, setShowPlans] = useState(false);
@@ -88,17 +73,33 @@ export default function AuthFooter() {
 
   useEffect(() => {
     if (auth.kind !== "signedIn") {
-      const timer = window.setTimeout(() => {
-        setProfile(null);
-        clearCachedProfile();
-      }, 0);
-      return () => window.clearTimeout(timer);
+      // 前ユーザーの localStorage cache 名前空間をここで一括で消す。
+      // in-memory の profile state は setProfile(null) で reset せず、render 時の
+      // resolveDisplayProfile が auth.userId mismatch を検出して null 化するのに任せる。
+      // effect 内で無条件 setState を呼ぶと react-hooks/set-state-in-effect に触れるため。
+      clearAllCachedProfiles();
+      return;
     }
     const supabase = getSupabase();
     if (!supabase) return;
     const mk = currentMonthKey();
+    const uid = auth.userId;
 
     let cancelled = false;
+
+    // この userId に紐付いた cache だけを読む。前ユーザーの cache は別 key に格納されて
+    // いるため、ここでは絶対に読めない。lint (react-hooks/set-state-in-effect) が effect
+    // 内の同期 setState を拒否するので setTimeout(0) 経由で 1 macrotask 遅らせる。
+    // render-time の resolveDisplayProfile が userId mismatch を弾く第二防壁なので
+    // この遅延で cross-user leak が広がることはない。
+    const cached = loadCachedProfile(uid);
+    const cacheTimer = cached
+      ? window.setTimeout(() => {
+          if (cancelled) return;
+          setProfile({ ...cached, userId: uid, used: cached.monthKey === mk ? cached.used : 0 });
+        }, 0)
+      : undefined;
+
     const billingReturn = readBillingReturnStatus();
     const maxAttempts = billingReturn === "success" ? 10 : 1;
 
@@ -110,13 +111,14 @@ export default function AuthFooter() {
       if (cancelled) return null;
       if (data) {
         const p: CachedProfile = {
+          userId: uid,
           plan: data.plan,
           used: data.month_key === mk ? data.monthly_node_count : 0,
           hasStripe: !!data.stripe_customer_id,
           monthKey: mk,
         };
         setProfile(p);
-        saveCachedProfile(p);
+        saveCachedProfile(uid, p);
         return p;
       }
       return null;
@@ -137,7 +139,10 @@ export default function AuthFooter() {
       clearBillingReturnStatus();
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (cacheTimer !== undefined) window.clearTimeout(cacheTimer);
+    };
   }, [auth]);
 
   useEffect(() => {
@@ -155,11 +160,15 @@ export default function AuthFooter() {
   const supabaseReady = isSupabaseConfigured();
 
   if (supabaseReady && auth.kind === "signedIn") {
-    const plan = profile?.plan ?? "free";
+    // 第二防壁: 遷移直後の render では state.profile が前ユーザーのまま残りうる。
+    // profile.userId が現 auth.userId と一致しない場合は null 扱いにする (useEffect 内の
+    // setProfile(null) は次の render まで反映されないため、ここで能動的に無効化する)。
+    const displayProfile = resolveDisplayProfile(profile, auth.userId);
+    const plan = displayProfile?.plan ?? "free";
     const limit = plan in PLAN_NODE_LIMITS ? PLAN_NODE_LIMITS[plan] : PLAN_NODE_LIMITS.free;
     const usageText = limit === null
       ? t("auth.unlimited")
-      : profile ? `${profile.used}/${limit}` : "";
+      : displayProfile ? `${displayProfile.used}/${limit}` : "";
     return (
       <div ref={containerRef} className="relative px-3 pb-3 pt-2">
         {/* Island */}

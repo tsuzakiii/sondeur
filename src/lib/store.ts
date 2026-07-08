@@ -28,9 +28,18 @@ function normalizeTrees(trees: Record<string, Tree>): Record<string, Tree> {
   return trees;
 }
 
+function readStoredOwnerRaw(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(STORAGE_OWNER_KEY);
+  } catch {
+    // 3rd-party context の SecurityError 等
+    return null;
+  }
+}
+
 function readStoredOwner(): string {
-  if (typeof window === "undefined") return storageOwner;
-  return window.localStorage.getItem(STORAGE_OWNER_KEY) ?? GUEST_OWNER;
+  return readStoredOwnerRaw() ?? GUEST_OWNER;
 }
 
 function readStoredTrees(): Record<string, Tree> {
@@ -49,7 +58,27 @@ function readStoredTrees(): Record<string, Tree> {
 function load() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
-  storageOwner = readStoredOwner();
+  // pre-owner-tag 世代の localStorage は「所有者不明のツリー」を持ちうる。owner tag 未設定で
+  // trees だけ残っている状態は、旧デプロイでサインインしていた別ユーザーの残骸が同ブラウザに
+  // 残っているケースを含む。ゲスト扱いで表示するとサインイン時に別アカウントへ upsert される
+  // 経路 (sync.ts の migrate tree 経路) に流れるため、無条件で破棄する。ゲスト時代の localStorage
+  // だけで作った tree は失うが、既に同期していた分は sign-in 時に cloud から復元される。
+  const rawOwner = readStoredOwnerRaw();
+  if (rawOwner === null) {
+    try {
+      if (window.localStorage.getItem(STORAGE_KEY) !== null) {
+        window.localStorage.removeItem(STORAGE_KEY);
+      }
+      // owner tag も念のため消しておく (setItem されていなかったので既に null だが冪等に)
+      window.localStorage.removeItem(STORAGE_OWNER_KEY);
+    } catch {
+      // localStorage 全般が触れない環境。in-memory で空 store のまま fail-open
+    }
+    storageOwner = GUEST_OWNER;
+    state = { trees: {} };
+    return;
+  }
+  storageOwner = rawOwner;
   // アカウント所有の保存ツリーは、認証済みの同一ユーザーだと確認できるまで表示しない。
   state = { trees: storageOwner === GUEST_OWNER ? readStoredTrees() : {} };
 }
