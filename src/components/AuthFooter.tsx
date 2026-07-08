@@ -88,9 +88,11 @@ export default function AuthFooter() {
 
   useEffect(() => {
     if (auth.kind !== "signedIn") {
-      setProfile(null);
-      clearCachedProfile();
-      return;
+      const timer = window.setTimeout(() => {
+        setProfile(null);
+        clearCachedProfile();
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
     const supabase = getSupabase();
     if (!supabase) return;

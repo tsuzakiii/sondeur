@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import AuthFooter from "./AuthFooter";
 import { useI18n } from "@/lib/i18n";
 import { setShared } from "@/lib/store";
@@ -68,13 +68,14 @@ export default function Sidebar({
   const [deleteRect, setDeleteRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [deleteExpanded, setDeleteExpanded] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const [now] = useState(() => Date.now());
   const hits = useMemo(
     () => (query.trim().length >= 2 ? searchTrees(trees, query.trim()) : null),
     [trees, query]
   );
 
   const relativeTime = (ts: number): string => {
-    const diff = Date.now() - ts;
+    const diff = now - ts;
     const min = Math.floor(diff / 60000);
     if (min < 1) return t("sidebar.justNow");
     if (min < 60) return t("sidebar.minutesAgo", { n: min });

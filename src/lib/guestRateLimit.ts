@@ -10,6 +10,13 @@ const DAILY_LIMIT = 15;
 
 let _serviceClient: ReturnType<typeof createClient> | null = null;
 
+type GuestQuotaRpc = {
+  rpc: (
+    fn: "consume_guest_quota",
+    args: { p_ip_hash: string; p_limit: number }
+  ) => Promise<{ data: boolean | null; error: unknown }>;
+};
+
 function getServiceClient() {
   if (_serviceClient) return _serviceClient;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -33,7 +40,7 @@ export async function checkGuestRateLimit(ip: string): Promise<boolean> {
   if (!supabase) return true;
 
   const ipHash = await hashIp(ip);
-  const { data: allowed, error } = await (supabase.rpc as Function)("consume_guest_quota", {
+  const { data: allowed, error } = await (supabase as unknown as GuestQuotaRpc).rpc("consume_guest_quota", {
     p_ip_hash: ipHash,
     p_limit: DAILY_LIMIT,
   });

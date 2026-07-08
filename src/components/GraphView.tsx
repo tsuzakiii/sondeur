@@ -116,7 +116,10 @@ export default function GraphView({
   const lastCenterRef = useRef<{ x: number; y: number } | null>(null);
   const lastRectRef = useRef<{ left: number; top: number } | null>(null);
   const callbacksRef = useRef({ onSelectNode, onToggleCollapse });
-  callbacksRef.current = { onSelectNode, onToggleCollapse };
+
+  useEffect(() => {
+    callbacksRef.current = { onSelectNode, onToggleCollapse };
+  }, [onSelectNode, onToggleCollapse]);
 
   // collapsed ノードの子孫を除いた可視ノード集合
   const { visibleNodes, visibleLinks, hiddenCount } = useMemo(() => {

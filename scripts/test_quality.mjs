@@ -1,5 +1,4 @@
 import OpenAI from "openai";
-import { readFileSync } from "node:fs";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
