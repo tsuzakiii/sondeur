@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AuthFooter from "./AuthFooter";
 import { useI18n } from "@/lib/i18n";
 import { setShared } from "@/lib/store";
@@ -68,7 +68,14 @@ export default function Sidebar({
   const [deleteRect, setDeleteRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [deleteExpanded, setDeleteExpanded] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
-  const [now] = useState(() => Date.now());
+  // Sidebar は unmount しないので (page.tsx が !open 分岐で常に描画する)、
+  // Date.now() を 1 分刻みで更新する。lint の `Cannot call impure function during render`
+  // を避けつつ「N 分前 → M 分前」が経時で正しく進むようにする。
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
   const hits = useMemo(
     () => (query.trim().length >= 2 ? searchTrees(trees, query.trim()) : null),
     [trees, query]

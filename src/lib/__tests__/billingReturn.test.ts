@@ -53,4 +53,13 @@ describe("billing return status", () => {
     clearBillingReturnStatus();
     expect(readBillingReturnStatus()).toBeNull();
   });
+
+  it("URL wins over pre-existing sessionStorage (precedence)", () => {
+    // ユーザーが `?billing=success` で戻ってきたが sessionStorage には過去の "cancel" が残っている
+    // というシナリオ: URL 側 (最新の遷移結果) を優先する契約であることを確認する。
+    stubBrowser("?billing=success");
+    // stubBrowser の後に sessionStorage へ値を仕込む
+    sessionStorage.setItem("sondeur.billing.return", "cancel");
+    expect(readBillingReturnStatus()).toBe("success");
+  });
 });

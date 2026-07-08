@@ -30,11 +30,11 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [suggestions, setSuggestions] = useState<string[] | null>(null);
   const [blankMode, setBlankMode] = useState(false);
-  const [billingNotice, setBillingNotice] = useState<BillingReturnStatus | null>(() => {
-    const status = readBillingReturnStatus();
-    if (status) rememberBillingReturnStatus(status);
-    return status;
-  });
+  // render phase では sessionStorage への副作用は起こさない。URL / sessionStorage の
+  // 読み取りだけを initializer で行い、書き込みは effect (commit 後) で行う。
+  const [billingNotice, setBillingNotice] = useState<BillingReturnStatus | null>(
+    () => readBillingReturnStatus()
+  );
   const mounted = useClientMounted();
   useEffect(() => {
     initAuth();
@@ -42,6 +42,10 @@ export default function Home() {
 
   useEffect(() => {
     if (!billingNotice) return;
+
+    // URL クリーンアップより先に sessionStorage へ retain する — URL パラメータが
+    // 消えた後の再マウントでも同じ notice が復元できるようにするため。
+    rememberBillingReturnStatus(billingNotice);
 
     const url = new URL(window.location.href);
     if (url.searchParams.has("billing")) {

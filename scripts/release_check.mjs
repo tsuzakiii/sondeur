@@ -72,8 +72,10 @@ if (!tokushoho.includes("Free プラン: 20ノード/月")) {
 
 const migrationDir = join(root, "supabase", "migrations");
 const migrations = existsSync(migrationDir) ? readdirSync(migrationDir).sort() : [];
+// 4桁 ID の後ろは "_" (Supabase の慣例: 0001_init.sql)。単純 startsWith だと
+// "00010_future.sql" が "0001" にマッチしてしまうので separator を明示する。
 for (const id of ["0001", "0002", "0003", "0004", "0005", "0006"]) {
-  if (!migrations.some((name) => name.startsWith(id))) fail(`Supabase migration ${id} is missing locally`);
+  if (!migrations.some((name) => name.startsWith(`${id}_`))) fail(`Supabase migration ${id} is missing locally`);
 }
 
 console.log("Sondeur release check");
