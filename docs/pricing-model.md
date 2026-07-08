@@ -5,10 +5,12 @@ Updated: 2026-07-08
 ## Decision
 
 - Free: $0, 20 nodes/month
-- Standard: $12/month, 250 nodes/month
-- Pro: $24/month, 600 nodes/month
+- Standard: $7/month, 100 nodes/month
+- Pro: $14/month, 300 nodes/month
 
 Do not ship an unlimited Pro plan. Search-backed generation has a real per-node cost, and the top plan should stay bounded until production telemetry shows the actual search rate and search-call count.
+
+The primary paid plan should stay well below Notion-scale pricing. Sondeur is a focused learning tool, not a broad workspace product, and 200 nodes/month is likely more than many early users will consume.
 
 ## Cost assumptions
 
@@ -52,26 +54,26 @@ Base case: 70% of nodes use web search, searched nodes average 1.5 search calls,
 
 | Plan | Stripe fee | OpenAI cost | Fixed infra allocation | Gross margin |
 | --- | ---: | ---: | ---: | ---: |
-| Standard $12 / 250 | $0.76 | $3.21 | $0.90 | 59.4% |
-| Pro $24 / 600 | $1.51 | $7.72 | $0.90 | 57.8% |
+| Standard $7 / 100 | $0.44 | $1.28 | $0.90 | 62.5% |
+| Pro $14 / 300 | $0.88 | $3.85 | $0.90 | 59.8% |
 
 Early-scale base case, with only 20 paid users:
 
 | Plan | Stripe fee | OpenAI cost | Fixed infra allocation | Gross margin |
 | --- | ---: | ---: | ---: | ---: |
-| Standard $12 / 250 | $0.76 | $3.21 | $2.25 | 48.2% |
-| Pro $24 / 600 | $1.51 | $7.72 | $2.25 | 52.2% |
+| Standard $7 / 100 | $0.44 | $1.28 | $2.25 | 43.2% |
+| Pro $14 / 300 | $0.88 | $3.85 | $2.25 | 50.1% |
 
 Stress case: 100% of paid nodes use web search, every searched node makes 2 web search calls, and fixed infra is allocated across 50 paid users.
 
 | Plan | Stripe fee | OpenAI cost | Fixed infra allocation | Gross margin |
 | --- | ---: | ---: | ---: | ---: |
-| Standard $12 / 250 | $0.76 | $5.69 | $0.90 | 38.8% |
-| Pro $24 / 600 | $1.51 | $13.64 | $0.90 | 33.1% |
+| Standard $7 / 100 | $0.44 | $2.27 | $0.90 | 48.4% |
+| Pro $14 / 300 | $0.88 | $6.82 | $0.90 | 38.5% |
 
 Free plan exposure:
 
 - Free user max cost at 20 all-search nodes: about $0.45
 - Guest max cost at 10 all-search nodes: about $0.23
 
-If production telemetry shows searched nodes average under 1.2 search calls, Pro can be raised to 800 nodes without changing price. If it stays near 2.0 calls, keep the current caps until there is enough paid-user volume to dilute fixed infra.
+If production telemetry shows searched nodes average under 1.2 search calls, Pro can be raised to 500 nodes without changing price. If it stays near 2.0 calls, keep the current caps until there is enough paid-user volume to dilute fixed infra.

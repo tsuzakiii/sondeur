@@ -12,8 +12,8 @@ import * as Sentry from "@sentry/nextjs";
  */
 export const PLAN_NODE_LIMITS: Record<string, number | null> = {
   free: 20,
-  standard: 250,
-  pro: 600,
+  standard: 100,
+  pro: 300,
 };
 
 /** 未ログインのお試し枠 (クライアント側ゲートで使用。合計ノード数) */

@@ -19,8 +19,8 @@ const CONTENT = {
     pricingHeading: "料金",
     plans: [
       { name: "Free", price: "$0", detail: "20 ノード/月" },
-      { name: "Standard", price: "$12/月", detail: "250 ノード/月" },
-      { name: "Pro", price: "$24/月", detail: "600 ノード/月" },
+      { name: "Standard", price: "$7/月", detail: "100 ノード/月" },
+      { name: "Pro", price: "$14/月", detail: "300 ノード/月" },
     ],
     pricingNote: "ログイン不要のお試し枠もあります。表示価格は米ドル建てです。税金・為替手数料等が発生する場合があります。",
     cta: "使ってみる",
@@ -38,8 +38,8 @@ const CONTENT = {
     pricingHeading: "Pricing",
     plans: [
       { name: "Free", price: "$0", detail: "20 nodes/mo" },
-      { name: "Standard", price: "$12/mo", detail: "250 nodes/mo" },
-      { name: "Pro", price: "$24/mo", detail: "600 nodes/mo" },
+      { name: "Standard", price: "$7/mo", detail: "100 nodes/mo" },
+      { name: "Pro", price: "$14/mo", detail: "300 nodes/mo" },
     ],
     pricingNote: "You can also try it without signing in. Prices are in USD. Applicable taxes and currency fees may apply.",
     cta: "Try Sondeur",
