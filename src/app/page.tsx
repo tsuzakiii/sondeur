@@ -12,6 +12,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { GUEST_NODE_LIMIT } from "@/lib/planLimits";
 import { useI18n } from "@/lib/i18n";
 import { useIsMobile } from "@/lib/useIsMobile";
+import { readBillingReturnStatus, rememberBillingReturnStatus, type BillingReturnStatus } from "@/lib/billingReturn";
 
 const GraphView = dynamic(() => import("@/components/GraphView"), { ssr: false });
 
@@ -28,10 +29,27 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [suggestions, setSuggestions] = useState<string[] | null>(null);
   const [blankMode, setBlankMode] = useState(false);
+  const [billingNotice, setBillingNotice] = useState<BillingReturnStatus | null>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
     initAuth();
+  }, []);
+
+  useEffect(() => {
+    const status = readBillingReturnStatus();
+    if (!status) return;
+    rememberBillingReturnStatus(status);
+    setBillingNotice(status);
+
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("billing")) {
+      url.searchParams.delete("billing");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+
+    const timer = window.setTimeout(() => setBillingNotice(null), status === "success" ? 9000 : 6000);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -110,6 +128,27 @@ export default function Home() {
 
   return (
     <div className="flex h-dvh w-full overflow-hidden">
+      {billingNotice && (
+        <div className="neu-raised fade-up fixed left-1/2 top-6 z-30 w-[min(30rem,85vw)] -translate-x-1/2 rounded-2xl px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="text-[13px] leading-6 text-slate-600">
+              <span className="font-semibold text-navy">
+                {t(billingNotice === "success" ? "billing.successTitle" : "billing.cancelTitle")}
+              </span>
+              <br />
+              {t(billingNotice === "success" ? "billing.successBody" : "billing.cancelBody")}
+            </div>
+            <button
+              onClick={() => setBillingNotice(null)}
+              className="shrink-0 rounded px-1.5 text-slate-400 hover:text-slate-600"
+              aria-label={t("home.close")}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {guestBlocked && auth.kind !== "signedIn" && (
         <div className="neu-raised fade-up fixed left-1/2 top-6 z-30 w-[min(30rem,85vw)] -translate-x-1/2 rounded-2xl px-5 py-4">
           <div className="flex items-start justify-between gap-3">

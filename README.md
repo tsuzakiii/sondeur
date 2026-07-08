@@ -53,6 +53,7 @@ These items are not fully handled by the repository and must be completed before
 - Create live Stripe USD prices with `scripts/setup_stripe.mjs`, then set `STRIPE_PRICE_STANDARD` and `STRIPE_PRICE_PRO` in Vercel.
 - Confirm Stripe is in live mode, not test mode.
 - In Stripe Billing settings, configure failed-payment handling so subscriptions are canceled after retry failure.
+- Configure and test the launch billing flow described in `docs/billing-flow.md`.
 - Check trademark availability for `Sondeur` in the target launch markets before spending on launch distribution.
 - Optional but recommended: set `SENTRY_DSN` and confirm Vercel Analytics is enabled for the production project.
 

@@ -62,6 +62,10 @@ const en: Dict = {
   "auth.billingNotReady": "Billing is being prepared.",
   "auth.error": "Error: {error}",
   "auth.notConfigured": "Supabase not configured",
+  "billing.successTitle": "Checkout complete.",
+  "billing.successBody": "Your plan is updating. This can take a few seconds.",
+  "billing.cancelTitle": "Checkout canceled.",
+  "billing.cancelBody": "No payment was made and your plan was not changed.",
 
   "graph.whatDesc": "what is it",
   "graph.whyDesc": "why is it so",
@@ -158,6 +162,10 @@ const ja: Dict = {
   "auth.billingNotReady": "課金は現在準備中です。",
   "auth.error": "エラー: {error}",
   "auth.notConfigured": "Supabase が設定されていません",
+  "billing.successTitle": "決済が完了しました。",
+  "billing.successBody": "プランを反映しています。数秒かかる場合があります。",
+  "billing.cancelTitle": "決済をキャンセルしました。",
+  "billing.cancelBody": "支払いは行われておらず、プランは変更されていません。",
 
   "graph.whatDesc": "それは何か",
   "graph.whyDesc": "なぜそうなのか",

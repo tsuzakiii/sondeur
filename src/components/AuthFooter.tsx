@@ -6,6 +6,7 @@ import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { signInWithEmail, signOut, useAuthInfo } from "@/lib/authState";
 import { PLAN_NODE_LIMITS } from "@/lib/planLimits";
 import { useI18n, useLocale, LOCALES } from "@/lib/i18n";
+import { clearBillingReturnStatus, readBillingReturnStatus } from "@/lib/billingReturn";
 
 const PLAN_LABEL: Record<string, string> = { free: "Free", standard: "Standard", pro: "Pro" };
 const PROFILE_CACHE_KEY = "sondeur.profile.cache";
@@ -94,22 +95,47 @@ export default function AuthFooter() {
     const supabase = getSupabase();
     if (!supabase) return;
     const mk = currentMonthKey();
-    void supabase
-      .from("profiles")
-      .select("plan, monthly_node_count, month_key, stripe_customer_id")
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          const p: CachedProfile = {
-            plan: data.plan,
-            used: data.month_key === mk ? data.monthly_node_count : 0,
-            hasStripe: !!data.stripe_customer_id,
-            monthKey: mk,
-          };
-          setProfile(p);
-          saveCachedProfile(p);
+
+    let cancelled = false;
+    const billingReturn = readBillingReturnStatus();
+    const maxAttempts = billingReturn === "success" ? 10 : 1;
+
+    const loadProfile = async (): Promise<CachedProfile | null> => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("plan, monthly_node_count, month_key, stripe_customer_id")
+        .single();
+      if (cancelled) return null;
+      if (data) {
+        const p: CachedProfile = {
+          plan: data.plan,
+          used: data.month_key === mk ? data.monthly_node_count : 0,
+          hasStripe: !!data.stripe_customer_id,
+          monthKey: mk,
+        };
+        setProfile(p);
+        saveCachedProfile(p);
+        return p;
+      }
+      return null;
+    };
+
+    void (async () => {
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const p = await loadProfile();
+        if (cancelled) return;
+        if (billingReturn !== "success" || (p && p.plan !== "free")) {
+          clearBillingReturnStatus();
+          return;
         }
-      });
+        if (attempt < maxAttempts - 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1500));
+        }
+      }
+      clearBillingReturnStatus();
+    })();
+
+    return () => { cancelled = true; };
   }, [auth]);
 
   useEffect(() => {
