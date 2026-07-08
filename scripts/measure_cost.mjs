@@ -3,12 +3,24 @@
 import OpenAI from "openai";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const JPY = 155;
+const USD_TO_JPY = 155;
+const WEB_SEARCH_CALL_USD = 10 / 1000;
 
 const PRICES = {
-  "gpt-5.4-mini": { in: 0.75 / 1e6, out: 4.5 / 1e6 },
-  "gpt-5.4":      { in: 2.0 / 1e6, out: 8.0 / 1e6 },
+  "gpt-5.4-mini": { in: 0.375 / 1e6, cachedIn: 0.0375 / 1e6, out: 2.25 / 1e6 },
+  "gpt-5.4": { in: 1.25 / 1e6, cachedIn: 0.125 / 1e6, out: 7.5 / 1e6 },
 };
+
+function estimateCost(usage, searches, price) {
+  const cachedInput = usage.input_tokens_details?.cached_tokens ?? 0;
+  const uncachedInput = Math.max(0, usage.input_tokens - cachedInput);
+  const tokenCost =
+    uncachedInput * price.in +
+    cachedInput * price.cachedIn +
+    usage.output_tokens * price.out;
+  const searchCost = searches * WEB_SEARCH_CALL_USD;
+  return { tokenCost, searchCost, total: tokenCost + searchCost };
+}
 
 const SYSTEM = `あなたは Sondeur — 学習者が一つの概念をどこまでも深く掘り下げるためのアシスタント。
 
@@ -44,11 +56,12 @@ for (const model of ["gpt-5.4-mini", "gpt-5.4"]) {
     });
     const u = res.usage;
     const searches = res.output.filter((o) => o.type === "web_search_call").length;
-    const cost = u.input_tokens * p.in + u.output_tokens * p.out;
+    const cost = estimateCost(u, searches, p);
     console.log(`--- ${c.label} ---`);
     console.log(`input: ${u.input_tokens} (cached: ${u.input_tokens_details?.cached_tokens ?? 0})  output: ${u.output_tokens} (reasoning: ${u.output_tokens_details?.reasoning_tokens ?? 0})`);
     console.log(`web_search: ${searches}回`);
-    console.log(`cost: $${cost.toFixed(5)} = ¥${(cost * JPY).toFixed(2)}`);
+    console.log(`token cost: $${cost.tokenCost.toFixed(5)}  search cost: $${cost.searchCost.toFixed(5)}`);
+    console.log(`total: $${cost.total.toFixed(5)} = ¥${(cost.total * USD_TO_JPY).toFixed(2)}`);
     console.log(`応答冒頭: ${res.output_text?.slice(0, 80)}...`);
   }
 }

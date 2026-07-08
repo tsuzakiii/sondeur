@@ -8,7 +8,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-async function ensure(name, amountJpy, lookupKey) {
+async function ensure(name, amountUsdCents, lookupKey) {
   // 既存の価格があれば再利用 (再実行しても重複しない)
   const existing = await stripe.prices.list({ lookup_keys: [lookupKey], limit: 1 });
   if (existing.data.length > 0) {
@@ -18,8 +18,8 @@ async function ensure(name, amountJpy, lookupKey) {
   const product = await stripe.products.create({ name });
   const price = await stripe.prices.create({
     product: product.id,
-    currency: "jpy",
-    unit_amount: amountJpy,
+    currency: "usd",
+    unit_amount: amountUsdCents,
     recurring: { interval: "month" },
     lookup_key: lookupKey,
   });
@@ -27,8 +27,8 @@ async function ensure(name, amountJpy, lookupKey) {
   return price.id;
 }
 
-const standard = await ensure("Sondeur Standard", 980, "sondeur_standard_monthly");
-const pro = await ensure("Sondeur Pro", 1980, "sondeur_pro_monthly");
+const standard = await ensure("Sondeur Standard", 1000, "sondeur_standard_usd_monthly");
+const pro = await ensure("Sondeur Pro", 2000, "sondeur_pro_usd_monthly");
 
 console.log("\n.env.local / Vercel に追記する値:");
 console.log(`STRIPE_PRICE_STANDARD=${standard}`);

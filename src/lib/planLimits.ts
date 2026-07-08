@@ -7,13 +7,13 @@ import * as Sentry from "@sentry/nextjs";
  */
 
 /**
- * 月間ノード生成上限 (null = 無制限)。
- * free 30 ≈ 上限フル消費で月¥25〜45 / standard 500 ≈ 上限フル消費で月¥400〜750 (980円に対し赤字にならない線)
+ * 月間ノード生成上限。
+ * 検索付き生成を保守的に $0.013/node と見て、上限フル消費でも粗利が残る線にしている。
  */
 export const PLAN_NODE_LIMITS: Record<string, number | null> = {
   free: 30,
-  standard: 500,
-  pro: null,
+  standard: 300,
+  pro: 800,
 };
 
 /** 未ログインのお試し枠 (クライアント側ゲートで使用。合計ノード数) */
@@ -54,12 +54,15 @@ export async function consumeNodeQuota(
     return { ok: true };
   }
   if (!allowed) {
+    const upgradeHint =
+      plan === "free"
+        ? "アップグレードで枠が広がります。"
+        : plan === "standard"
+          ? "Proプランで枠が広がります。"
+          : "";
     return {
       ok: false,
-      reason:
-        plan === "free"
-          ? `Freeプランの今月のノード生成上限 (${limit}個) に達しました。来月リセットされます。アップグレードで枠が広がります。`
-          : `今月のノード生成上限 (${limit}個) に達しました。来月リセットされます。Proプランで無制限になります。`,
+      reason: `今月のノード生成上限 (${limit}個) に達しました。来月リセットされます。${upgradeHint}`,
     };
   }
   return { ok: true };

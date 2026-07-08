@@ -42,8 +42,8 @@ describe("consumeNodeQuota", () => {
     expect(res.reason).toContain(String(PLAN_NODE_LIMITS.free));
   });
 
-  it("pro プランは RPC を呼ばず無条件で ok", async () => {
-    const rpc = vi.fn();
+  it("pro プランも月間上限を RPC に渡して消費する", async () => {
+    const rpc = vi.fn(async () => ({ data: true, error: null }));
     const supabase = {
       from: () => ({
         select: () => ({ eq: () => ({ single: async () => ({ data: { plan: "pro" }, error: null }) }) }),
@@ -52,7 +52,7 @@ describe("consumeNodeQuota", () => {
     } as unknown as SupabaseClient;
     const res = await consumeNodeQuota(supabase, user);
     expect(res.ok).toBe(true);
-    expect(rpc).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith("consume_node_quota", { p_limit: PLAN_NODE_LIMITS.pro });
   });
 
   it("未知のプランは free の上限にフォールバック", async () => {
