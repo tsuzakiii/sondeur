@@ -131,16 +131,14 @@ export async function GET(request: Request) {
     return Response.json(cached);
   }
 
+  if (!process.env.OPENAI_API_KEY) {
+    // NHK見出しの原文露出を避けるため、キー未設定時は静的フォールバックを返す (キャッシュしない)
+    return Response.json({ date, suggestions: fallback, source: "fallback" });
+  }
+
   try {
     const feeds = await fetchHeadlines();
     if (feeds.length === 0) throw new Error("no headlines");
-    if (!process.env.OPENAI_API_KEY) {
-      const raw = feeds.flatMap((f) => f.titles.slice(0, 1)).slice(0, 3);
-      const suffix = lang === "ja" ? " とは？" : " — what happened?";
-      const result = { date, suggestions: raw.map((t) => `${t}${suffix}`), source: "rss-raw" };
-      cache.set(cacheKey, result);
-      return Response.json(result);
-    }
     const suggestions = await headlinesToQuestions(feeds, lang);
     const result = { date, suggestions, source: "rss+llm" };
     cache.set(cacheKey, result);

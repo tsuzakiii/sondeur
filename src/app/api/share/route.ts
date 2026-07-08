@@ -13,12 +13,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "bad request" }, { status: 400 });
   }
 
-  const { error } = await auth.supabase
+  const { data, error } = await auth.supabase
     .from("trees")
     .update({ shared: body.shared })
-    .eq("id", body.treeId);
+    .eq("id", body.treeId)
+    .eq("user_id", auth.user.id) // 明示的な所有者条件 (RLS への防御的二重化)
+    .select("id");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data || data.length === 0) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
 
   return NextResponse.json({ ok: true });
 }

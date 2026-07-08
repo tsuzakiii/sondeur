@@ -4,26 +4,57 @@ import { getServiceSupabase, getStripe, planFromPriceId } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
-async function setPlan(userId: string, plan: string, stripeCustomerId?: string) {
+// 戻り値: 更新に成功したら true。失敗時は呼び出し元が 500 を返して Stripe の再送に乗せる
+async function setPlan(userId: string, plan: string, stripeCustomerId?: string): Promise<boolean> {
   const supabase = getServiceSupabase();
   if (!supabase) {
     console.error("[webhook] service supabase not configured");
-    return;
+    Sentry.captureException(new Error("[webhook] service supabase not configured"));
+    return false;
   }
   const patch: Record<string, string> = { plan };
   if (stripeCustomerId) patch.stripe_customer_id = stripeCustomerId;
-  const { error } = await supabase.from("profiles").update(patch).eq("id", userId);
-  if (error) console.error("[webhook] profile update failed", error);
+  const { data, error } = await supabase.from("profiles").update(patch).eq("id", userId).select("id");
+  if (error) {
+    console.error("[webhook] profile update failed", error);
+    Sentry.captureException(error);
+    return false;
+  }
+  // PostgREST は 0 行更新でも error にならない。profile 不在を成功扱いにすると
+  // 課金済み・plan 未反映が闇に落ちるため、失敗として Stripe の再送に乗せる
+  if (!data || data.length === 0) {
+    console.error(`[webhook] profile not found for user ${userId}`);
+    Sentry.captureMessage(`[webhook] profile not found for user ${userId}`);
+    return false;
+  }
+  return true;
 }
 
-async function setPlanByCustomer(customerId: string, plan: string) {
+async function setPlanByCustomer(customerId: string, plan: string): Promise<boolean> {
   const supabase = getServiceSupabase();
-  if (!supabase) return;
-  const { error } = await supabase
+  if (!supabase) {
+    console.error("[webhook] service supabase not configured");
+    Sentry.captureException(new Error("[webhook] service supabase not configured"));
+    return false;
+  }
+  const { data, error } = await supabase
     .from("profiles")
     .update({ plan })
-    .eq("stripe_customer_id", customerId);
-  if (error) console.error("[webhook] profile update by customer failed", error);
+    .eq("stripe_customer_id", customerId)
+    .select("id");
+  if (error) {
+    console.error("[webhook] profile update by customer failed", error);
+    Sentry.captureException(error);
+    return false;
+  }
+  // 0 行更新 = 該当 customer の profile がまだ無い (checkout.session.completed より先に
+  // subscription イベントが届いた等)。500 で再送させれば customer_id 設定後に成功する
+  if (!data || data.length === 0) {
+    console.error(`[webhook] profile not found for customer ${customerId}`);
+    Sentry.captureMessage(`[webhook] profile not found for customer ${customerId}`);
+    return false;
+  }
+  return true;
 }
 
 function planFromSubscription(sub: Stripe.Subscription): string | null {
@@ -48,6 +79,9 @@ export async function POST(request: Request) {
     return new Response("invalid signature", { status: 400 });
   }
 
+  // false になったら Stripe に再送させるため 500 を返す (冪等更新なので再送で二重付与にはならない)
+  let ok = true;
+
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object;
@@ -58,7 +92,14 @@ export async function POST(request: Request) {
           typeof session.subscription === "string" ? session.subscription : session.subscription.id
         );
         const plan = planFromSubscription(sub);
-        if (plan) await setPlan(userId, plan, customerId);
+        if (!plan) {
+          const priceId = sub.items.data[0]?.price?.id;
+          console.error(`[webhook] unknown price id: ${priceId}`);
+          Sentry.captureMessage(`[webhook] unknown price id: ${priceId}`);
+          ok = false;
+          break;
+        }
+        ok = await setPlan(userId, plan, customerId);
       }
       break;
     }
@@ -67,19 +108,28 @@ export async function POST(request: Request) {
       const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
       if (sub.status === "active" || sub.status === "trialing") {
         const plan = planFromSubscription(sub);
-        if (plan) await setPlanByCustomer(customerId, plan);
+        if (!plan) {
+          const priceId = sub.items.data[0]?.price?.id;
+          console.error(`[webhook] unknown price id: ${priceId}`);
+          Sentry.captureMessage(`[webhook] unknown price id: ${priceId}`);
+          ok = false;
+          break;
+        }
+        ok = await setPlanByCustomer(customerId, plan);
       } else if (["canceled", "unpaid", "incomplete_expired"].includes(sub.status)) {
-        await setPlanByCustomer(customerId, "free");
+        ok = await setPlanByCustomer(customerId, "free");
       }
+      // それ以外 (past_due, incomplete 等) は現状維持 (支払いリトライ中の猶予、意図的に何もしない)
       break;
     }
     case "customer.subscription.deleted": {
       const sub = event.data.object;
       const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
-      await setPlanByCustomer(customerId, "free");
+      ok = await setPlanByCustomer(customerId, "free");
       break;
     }
   }
 
+  if (!ok) return new Response("processing failed", { status: 500 });
   return Response.json({ received: true });
 }

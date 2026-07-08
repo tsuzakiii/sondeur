@@ -1,64 +1,98 @@
 # Sondeur
 
+**わからないことを、わかるまで測深する。**
+
 AIの説明の「わからない箇所」をスパン選択し、**What is it**（それは何か）/ **Why is it**（なぜそうなのか）の二択で掘り下げる学習サービス。掘った履歴は木構造として蓄積され、理解の航跡＝資産になる。
 
-## 起動
+🌐 **Live: https://sondeur.vercel.app**
+
+| ホーム | 探索ツリー (モバイル) |
+|---|---|
+| ![home](docs/screenshot-home.png) | ![mobile](docs/screenshot-mobile.png) |
+
+## コアループ
+
+1. 質問を入力 → AIの説明がルートノードにストリーミングされる
+2. 本文の語句をドラッグ（スマホは長押し）で選択 → **What / Why / Ask** のピルで掘り下げ
+3. グラフに新ノードが生え、探索の航跡が木構造として残る
+4. 掘り済みスパンは本文中にハイライトされ、クリックで既存ノードへジャンプ
+5. ツリーは公開リンクで共有できる（いつでも取り消し可能）
+
+## 機能
+
+- **探索ツリー**: D3 force simulation のグラフ + スパン選択駆動の展開
+- **LLM**: OpenAI Responses API + web_search（モデル判断で検索）、事実性規律プロンプト、ストリーミング
+- **認証・同期**: Supabase マジックリンク認証。ゲスト（localStorage）→ ログインでツリー自動移行
+- **課金**: Stripe サブスクリプション（Free 30 / Standard 500 / Pro 無制限 ノード/月）
+- **共有**: ツリー単位の公開リンク + RLS による読み取り制御
+- **i18n**: 日本語 / English（プロンプトの出力言語も切替）
+- **モバイル対応**: サイドバー=ドロワー、読みパネル=ボトムシート、タッチ選択対応
+
+## 設計のポイント
+
+- **quota はサーバー側でアトミックに enforcement** — `SECURITY DEFINER` の RPC が月次カウンタを条件付き UPDATE で消費。クライアント改ざん不可、profiles テーブルは読み取り専用化
+- **ゲストのレート制限も永続化** — IP の SHA-256 ハッシュ（生 IP は保存しない、3日で自動削除）を Supabase でカウント。サーバーレスのインスタンス揮発に依存しない
+- **RLS 全面適用** — 全テーブル行レベルセキュリティ + 親ノード整合性トリガー + `search_path` 固定の DEFINER 関数
+- **エラー監視は DSN 未設定で完全 no-op** — Sentry を fail-open 箇所（quota / rate limit / webhook）に仕込みつつ、env なしでもビルド・動作する
+- **ノード追記のみの設計** — 同期は「作成時 insert + 生成完了時の content 確定」だけで成立する
+
+## 技術スタック
+
+Next.js 16 (App Router / Turbopack) · React 19 · Tailwind CSS 4 · D3 · Supabase (Auth / Postgres / RLS) · Stripe · OpenAI Responses API · Sentry · Vercel
+
+## 開発
 
 ```bash
 npm install
-npm run dev
+npm run dev        # 開発サーバー
+npm test           # vitest (スパン分割 / quota / レート制限 / i18n キー網羅性)
+npm run typecheck  # tsc --noEmit
 ```
 
 LLM応答を有効にするには `.env.local` に以下を設定（未設定時はモックストリーミングで動作）:
 
 ```
 OPENAI_API_KEY=sk-...
-SONDEUR_MODEL=gpt-5.4-mini   # 省略可、デフォルト gpt-5.4-mini
+SONDEUR_MODEL=gpt-5.4-mini   # 省略可
 ```
 
-## クラウド同期 (Supabase) のセットアップ
+### クラウド同期 (Supabase)
 
 未設定の間はゲストモード（localStorage のみ）で動く。有効化する手順:
 
-1. [supabase.com](https://supabase.com) でプロジェクト作成（無料枠でOK、リージョンは Tokyo 推奨）
-2. ダッシュボード → SQL Editor で `supabase/migrations/0001_init.sql` の中身を実行
-3. Settings → API から URL と anon key を `.env.local` に追記:
+1. [supabase.com](https://supabase.com) でプロジェクト作成 → SQL Editor で `supabase/migrations/` を番号順に実行
+2. Settings → API の URL と publishable key を `.env.local` へ:
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+   SUPABASE_SECRET_KEY=...   # ゲストレート制限用 (service role)
    ```
-4. Authentication → URL Configuration の Site URL に `http://localhost:3000`（開発時は使用ポート）を設定
-5. devサーバー再起動 → サイドバー下部に「ログインして航跡をクラウドに保存」が出る
+3. Authentication → URL Configuration の Site URL を設定 → devサーバー再起動
 
-ログインはメールのマジックリンク。初回ログイン時、ゲスト時代のローカルツリーは自動でクラウドへ移行される。ノードは追記のみの設計なので、同期は「作成時insert + 生成完了時のcontent確定」だけで成立する。
+### 課金 (Stripe)
 
-## 使い方
-
-1. 下部の入力バーから質問 → 新規ツリーが作成されルートノードに説明がストリーミングされる
-2. リーディングパネルの本文をドラッグでスパン選択 → フローティングピルから **What is it** / **Why is it**
-3. グラフに新ノードが生え、本文が埋まる（生成中はパルス）
-4. 掘り済みスパンは本文中にハイライトされ、クリックで既存子ノードへジャンプ（再生成しない）
-5. ノードクリックで本文表示、ダブルクリックでサブツリーを折りたたみ（`+N` バッジ）
-
-## エッジの意味づけ
-
-- **What** = シアン・実線（定義に降りる）
-- **Why** = アンバー・破線（理由に登る）
-
-## 現状の実装範囲
-
-- コアループ: ツリー作成 / スパン選択 / What・Why・自由質問展開 / D3 force グラフ / 折りたたみ
-- LLM: Responses API + web_search（モデル判断で検索）、reasoning effort low、事実性規律プロンプト
-- ホームのサジェスト: 当日のニュースから生成（`/api/suggestions`、日次キャッシュ、失敗時は静的フォールバック）
-- 永続化: ゲスト = localStorage / ログイン = Supabase 同期（マジックリンク認証、RLS、初回ログインでローカル分を自動移行）
-- 未実装: Free プラン制限（5ツリー/月・深さ3）、Stripe 課金、ツリー横断検索、共有/エクスポート、モバイル最適化
-- 既知の制限: ゲストの localStorage は**シングルタブ前提**（複数タブ同時編集で上書きが起きる）
+`STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` / `STRIPE_PRICE_STANDARD` / `STRIPE_PRICE_PRO` / `STRIPE_WEBHOOK_SECRET` を設定。webhook は `/api/billing/webhook`。
 
 ## 構成
 
-- `src/lib/types.ts` — Tree / SondeurNode / ExpandRequest 型
-- `src/lib/store.ts` — localStorage 永続化ストア（useSyncExternalStore）。Supabase 移行時はこのモジュールを差し替える
-- `src/lib/expand.ts` — ツリー作成・スパン展開のクライアント側オーケストレーション（fetch ストリームをストアへ流し込む）
-- `src/app/api/expand/route.ts` — ストリーミング Route Handler。`OPENAI_API_KEY` 未設定時はモック
-- `src/components/GraphView.tsx` — D3 force simulation（ズーム/パン/ドラッグ/折りたたみ）
-- `src/components/ReadingPanel.tsx` — スパン選択 → ピル、掘り済みハイライト
+```
+src/
+  app/
+    api/expand/        # ストリーミング Route Handler (quota / rate limit ゲート)
+    api/billing/       # Stripe checkout / portal / webhook
+    api/share/         # 共有のオン/オフ
+    s/[id]/            # 共有ツリーの公開ページ (SSR + OGP)
+    legal/             # 特商法 / 利用規約 / プライバシーポリシー
+  components/          # GraphView (D3) / ReadingPanel / Sidebar
+  lib/
+    store.ts           # localStorage ストア (useSyncExternalStore)
+    segments.ts        # スパン分割ロジック (テスト対象)
+    planLimits.ts      # プラン別 quota
+    guestRateLimit.ts  # ゲストレート制限
+supabase/migrations/   # スキーマ + RLS + RPC
+prompts/               # LLM プロンプト
+```
+
+## License
+
+All rights reserved. ソースコードは学習・参照目的で公開しています。

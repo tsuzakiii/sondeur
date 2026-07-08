@@ -120,6 +120,7 @@ async function* openaiStream(req: ExpandRequest): AsyncGenerator<string> {
     instructions: SYSTEM_PROMPT,
     input: buildUserPrompt(req),
     tools: [{ type: "web_search" as const }],
+    max_output_tokens: 4000,
   });
   for await (const event of stream) {
     if (event.type === "response.output_text.delta") {
@@ -165,7 +166,7 @@ export async function POST(request: Request) {
         : check.reason;
       return Response.json({ error: reason }, { status: 402 });
     }
-  } else if (process.env.NODE_ENV === "production") {
+  } else if (process.env.NODE_ENV !== "development") {
     if (!(await checkGuestRateLimit(getClientIp(request)))) {
       return Response.json(
         { error: body.lang === "ja"

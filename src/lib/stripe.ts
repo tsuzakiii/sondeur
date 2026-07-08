@@ -9,7 +9,7 @@ let stripe: Stripe | null = null;
 
 export function getStripe(): Stripe | null {
   if (!isStripeConfigured()) return null;
-  stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY!);
+  stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2026-05-27.dahlia" });
   return stripe;
 }
 
