@@ -195,7 +195,7 @@ export default function AuthFooter() {
                         onClick={() => void goBilling("checkout", t, "standard")}
                         className="neu-raised-sm flex-1 rounded-lg px-2 py-1.5 text-[11px] text-slate-600 transition-colors hover:text-navy"
                       >
-                        <span className="font-semibold">Standard</span> $10
+                        <span className="font-semibold">Standard</span> $12
                         <br />
                         <span className="text-[10px] text-slate-400">{t("auth.standardNodes")}</span>
                       </button>
@@ -203,7 +203,7 @@ export default function AuthFooter() {
                         onClick={() => void goBilling("checkout", t, "pro")}
                         className="neu-raised-sm flex-1 rounded-lg px-2 py-1.5 text-[11px] text-slate-600 transition-colors hover:text-navy"
                       >
-                        <span className="font-semibold">Pro</span> $20
+                        <span className="font-semibold">Pro</span> $24
                         <br />
                         <span className="text-[10px] text-slate-400">{t("auth.proNodes")}</span>
                       </button>

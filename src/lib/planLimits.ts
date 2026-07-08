@@ -8,12 +8,12 @@ import * as Sentry from "@sentry/nextjs";
 
 /**
  * 月間ノード生成上限。
- * 検索付き生成を保守的に $0.013/node と見て、上限フル消費でも粗利が残る線にしている。
+ * 検索付き生成は実測で最大 $0.0227/node 程度。上限フル消費でも粗利が残る線にしている。
  */
 export const PLAN_NODE_LIMITS: Record<string, number | null> = {
-  free: 30,
-  standard: 300,
-  pro: 800,
+  free: 20,
+  standard: 250,
+  pro: 600,
 };
 
 /** 未ログインのお試し枠 (クライアント側ゲートで使用。合計ノード数) */

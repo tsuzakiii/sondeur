@@ -27,8 +27,8 @@ async function ensure(name, amountUsdCents, lookupKey) {
   return price.id;
 }
 
-const standard = await ensure("Sondeur Standard", 1000, "sondeur_standard_usd_monthly");
-const pro = await ensure("Sondeur Pro", 2000, "sondeur_pro_usd_monthly");
+const standard = await ensure("Sondeur Standard", 1200, "sondeur_standard_usd_monthly");
+const pro = await ensure("Sondeur Pro", 2400, "sondeur_pro_usd_monthly");
 
 console.log("\n.env.local / Vercel に追記する値:");
 console.log(`STRIPE_PRICE_STANDARD=${standard}`);
