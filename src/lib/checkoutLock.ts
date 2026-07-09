@@ -1,6 +1,9 @@
 // per-user checkout lock。#15 / docs/fix-checkout-atomic-lock.md 参照。
 // tryAcquire: 60s TTL 内の race loser には null を返す。
-// 環境未設定 (SUPABASE_SECRET_KEY なし) は "unavailable" で fail-CLOSED。
+// "unavailable" (fail-CLOSED) を返す条件は 2 つ:
+//   1) 環境未設定 (SUPABASE_SECRET_KEY なしで service client が null)
+//   2) RPC error (review-r1 B2: migration 未適用 / DB 障害を race loser と区別)
+// route はどちらも 503 にマップして operator が silent misconfig に気付ける。
 
 import * as Sentry from "@sentry/nextjs";
 import { getServiceSupabase } from "@/lib/stripe";
