@@ -2,7 +2,7 @@
 
 Sondeur is a web app for exploring AI-generated explanations by selecting unclear phrases and expanding them into follow-up nodes.
 
-Live app: https://sondeur.vercel.app
+Live app: https://sondeur.app
 
 | Home | Exploration tree on mobile |
 | --- | --- |

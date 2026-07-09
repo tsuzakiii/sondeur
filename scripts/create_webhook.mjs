@@ -5,7 +5,7 @@ import Stripe from "stripe";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const endpoint = await stripe.webhookEndpoints.create({
-  url: "https://sondeur.vercel.app/api/billing/webhook",
+  url: "https://sondeur.app/api/billing/webhook",
   enabled_events: [
     "checkout.session.completed",
     "customer.subscription.updated",

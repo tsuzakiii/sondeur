@@ -18,7 +18,7 @@ const ROWS: { label: string; value: string }[] = [
       "法令に基づき、取引時に電話番号の開示を求められた場合は、遅滞なく開示いたします（お問い合わせは下記メールアドレスへお願いします）",
   },
   { label: "メールアドレス", value: "sondeur.app@gmail.com" },
-  { label: "販売URL", value: "https://sondeur.vercel.app" },
+  { label: "販売URL", value: "https://sondeur.app" },
   {
     label: "販売価格",
     value:
