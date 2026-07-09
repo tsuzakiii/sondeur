@@ -98,7 +98,14 @@ export async function POST(request: Request) {
     }
   }
 
-  const origin = new URL(request.url).origin;
+  // 本番の origin は env で pin する。`request.url` は Host header 由来なので、
+  // upstream proxy が `Host: attacker.example` を forward すると Stripe の redirect が
+  // 攻撃者ドメインに向く経路が残る。NEXT_PUBLIC_SITE_URL は release_check で必須化済み
+  // で、開発時 (env 未設定) だけ request.url に fallback する。
+  const configuredOrigin = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const origin = configuredOrigin && configuredOrigin.length > 0
+    ? configuredOrigin.replace(/\/$/, "")
+    : new URL(request.url).origin;
   const hasStripe = !!fresh.stripe_customer_id;
   const session = await stripe.checkout.sessions.create(
     {

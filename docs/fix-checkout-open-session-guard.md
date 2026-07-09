@@ -26,6 +26,10 @@ Not addressed here: a Sentry-side visibility layer for residual duplicates. r2 r
 
 Pass a second argument object `{ idempotencyKey: keyValue }` to `stripe.checkout.sessions.create`. `keyValue = \`checkout:${auth.user.id}:${body.plan}:${price}\`` — deterministic per (user, plan, resolved Price ID). Same-plan retries within Stripe's 24-hour idempotency retention hit the same Session; Price ID rotations produce a new key so an env change does not collide with the old retention. If the retained Session has already expired or completed, the second tab lands on the same Stripe-hosted page (which shows the appropriate completed/expired state) — the user cannot be double-charged through this path.
 
+**Layer 1.5 — Origin pinning.**
+
+`success_url` / `cancel_url` are derived from `NEXT_PUBLIC_SITE_URL` when set (production and preview envs — release_check requires it), falling back to `new URL(request.url).origin` only in development where `NEXT_PUBLIC_SITE_URL` is intentionally absent. This closes a Host-header-trust bug where an upstream proxy forwarding `Host: attacker.example` would otherwise cause Stripe to redirect the paid user to the attacker's origin.
+
 **Layer 2 — Second profile read immediately before create.**
 
 After the initial guard block, and immediately before `stripe.checkout.sessions.create`, re-execute `.from("profiles").select("plan, stripe_customer_id").eq("id", auth.user.id).single()`. Bind the result to a NEW variable `fresh` (not shadowing the earlier `profile`) and re-run the exact same 3 guards against `fresh`:
@@ -54,6 +58,10 @@ The re-read is one extra Supabase round trip. That is an accepted cost.
 
 ## Out of scope / Accepted tradeoffs
 
+- **subscription.list `limit: 10`** — an edge case where a customer holds 11+ subscriptions and the only live one is on page 2 could bypass the guard. Pre-existing pattern from before this hotfix. Paginating is trivial but out of scope for the race fix.
+- **Idempotency key parameter completeness** — the key includes `(userId, plan, priceId, hasStripe)`. If the request's `customer_email` (from Supabase auth) changes across the 24-hour Stripe idempotency window (rare — email changes require confirmation flow), the same key targets a differing-parameter create call and Stripe returns a 400 idempotency-conflict. The 400 surfaces as a 500 on the route response and is visible in operator monitoring. Adding `email` to the key hash would flip retention on every email change, which is worse than the surfaced error.
+- **Rolling deploy race** — during a rolling deploy that changes `STRIPE_PRICE_STANDARD`/`STRIPE_PRICE_PRO`, two same-plan requests served by the old-pod and new-pod produce different keys (priceId component differs) and two Sessions can be created. Deploy windows are short and env changes to Price IDs are rare enough to accept.
+- **Automated route-level test** — same rationale as PR #14 (M1). The wiring is validated via helper unit tests (`idempotencyKey.test.ts`) plus AC-grep on the route file. If future edits regress the double-read or the fresh-vs-stale-customer branch, the branch review of that PR will catch it.
 - **Cross-plan concurrent race** (Standard tab + Pro tab clicked before either webhook fires): both tabs proceed to Stripe. Both payments can succeed. Closing this requires a per-user server-side lock — see #15. This tradeoff is explicit and not maskable by a small design change; the operator can choose to accept the residual risk (it requires the same user in two tabs choosing DIFFERENT plans within seconds, and both actually completing payment) or open #15 as a follow-up.
 - **Route-level integration test with Stripe/Supabase mocks**: same rationale as PR #14 (M1). The idempotency key template is validated at the unit level via `checkoutIdempotencyKey`, and the AC-M2-3 double-read wiring is validated by targeted grep + code review, not by a mocked route test. Regression detection for the wired behavior is: (a) the helper unit tests fail if the template drifts, (b) `npm run lint` / `npm run typecheck` catch structural regressions.
 - **Client-side in-flight button-disable indicator**: separate UX improvement, not a race-safety change.
