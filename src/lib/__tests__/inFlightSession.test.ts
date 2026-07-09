@@ -179,6 +179,66 @@ describe("expireInFlightSessionIfDifferentPlan (AC-#15-3)", () => {
     ).rejects.toThrow("rate limit");
   });
 
+  it("review-r1 B1 asymmetry: Supabase clear error during status='expired' path is swallowed (safeClearInFlightSession), returns 'cleared'", async () => {
+    // Verify the route-side asymmetry: when Stripe expire has already succeeded
+    // (or the Session is already expired), a transient DB blip should NOT surface
+    // as a route 500. If a future edit reverts `safeClearInFlightSession` → throwing
+    // `clearInFlightSession` at inFlightSession.ts:65 (or removes the safe wrapper),
+    // this test fails.
+    const stripe = stripeMock({
+      retrieveResult: {
+        status: "expired",
+        line_items: { data: [{ price: { id: "price_standard" } }] },
+      },
+    });
+    // Custom Supabase mock: `.update().eq().eq()` resolves with an error
+    const err = new Error("db down");
+    const finalEq = vi.fn(() => Promise.resolve({ error: err }));
+    const eq1 = vi.fn(() => ({ eq: finalEq }));
+    const update = vi.fn(() => ({ eq: eq1 }));
+    const from = vi.fn(() => ({ update }));
+    const supabase = { from } as unknown as SupabaseClient;
+
+    const outcome = await expireInFlightSessionIfDifferentPlan(
+      stripe,
+      supabase,
+      "uid",
+      "cs_prev",
+      "price_standard"
+    );
+    // safeClearInFlightSession catches the error → returns "cleared" instead of throwing
+    expect(outcome).toBe("cleared");
+  });
+
+  it("review-r1 B1 asymmetry: Supabase clear error during expire-succeeded path is also swallowed", async () => {
+    // Second `safeClearInFlightSession` call site (inFlightSession.ts:87 after successful
+    // Stripe expire). Same asymmetry: DB blip must not 500 the route when Stripe already
+    // did its job.
+    const stripe = stripeMock({
+      retrieveResult: {
+        status: "open",
+        line_items: { data: [{ price: { id: "price_pro" } }] },
+      },
+    });
+    const err = new Error("db down");
+    const finalEq = vi.fn(() => Promise.resolve({ error: err }));
+    const eq1 = vi.fn(() => ({ eq: finalEq }));
+    const update = vi.fn(() => ({ eq: eq1 }));
+    const from = vi.fn(() => ({ update }));
+    const supabase = { from } as unknown as SupabaseClient;
+
+    const outcome = await expireInFlightSessionIfDifferentPlan(
+      stripe,
+      supabase,
+      "uid",
+      "cs_prev",
+      "price_standard"
+    );
+    expect(outcome).toBe("cleared");
+    // Stripe expire was called (different-plan path)
+    expect((stripe.checkout.sessions.expire as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith("cs_prev");
+  });
+
   it("impl-r7-F3: missing line_items → conservatively expires (safest for invariant)", async () => {
     const stripe = stripeMock({
       retrieveResult: { status: "open" }, // no line_items
