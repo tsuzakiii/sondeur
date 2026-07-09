@@ -40,6 +40,22 @@ export default function Home() {
   const [billingNotice, setBillingNotice] = useState<BillingReturnStatus | null>(
     () => readBillingReturnStatus()
   );
+  // /auth/confirm がリンク検証に失敗した時の ?auth_error= を拾って表示する (無言失敗の禁止)
+  const [authError, setAuthError] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URL(window.location.href).searchParams.get("auth_error");
+  });
+
+  useEffect(() => {
+    if (!authError) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("auth_error")) {
+      url.searchParams.delete("auth_error");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+    const timer = window.setTimeout(() => setAuthError(null), 10000);
+    return () => window.clearTimeout(timer);
+  }, [authError]);
   const mounted = useClientMounted();
   useEffect(() => {
     initAuth();
@@ -185,6 +201,25 @@ export default function Home() {
                 // これをしないとリロード後に同じ notice が復活する。
                 clearBillingReturnStatus();
               }}
+              className="shrink-0 rounded px-1.5 text-slate-400 hover:text-slate-600"
+              aria-label={t("home.close")}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {authError && (
+        <div className="neu-raised fade-up fixed left-1/2 top-6 z-30 w-[min(30rem,85vw)] -translate-x-1/2 rounded-2xl px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="text-[13px] leading-6 text-slate-600">
+              <span className="font-semibold text-wine">{t("auth.callbackErrorTitle")}</span>
+              <br />
+              {t("auth.callbackErrorBody")}
+            </div>
+            <button
+              onClick={() => setAuthError(null)}
               className="shrink-0 rounded px-1.5 text-slate-400 hover:text-slate-600"
               aria-label={t("home.close")}
             >
