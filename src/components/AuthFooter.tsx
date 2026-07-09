@@ -15,6 +15,7 @@ import {
   saveCachedProfile,
   type CachedProfile,
 } from "./authFooterCache";
+import { pickPlanMode } from "./authFooterMode";
 
 const PLAN_LABEL: Record<string, string> = { free: "Free", standard: "Standard", pro: "Pro" };
 
@@ -188,6 +189,10 @@ export default function AuthFooter() {
     const usageText = limit === null
       ? t("auth.unlimited")
       : displayProfile ? `${displayProfile.used}/${limit}` : "";
+    // webhook が canceled/unpaid/incomplete_expired で downgrade したユーザーは
+    // { plan: "free", stripe_customer_id: <cus> } になる。この状態を "recover" として
+    // Portal に流し、通常の Free (new) ユーザーは "upgrade" として checkout に流す。
+    const planMode = pickPlanMode(plan, displayProfile?.hasStripe ?? false);
     return (
       <div ref={containerRef} className="relative px-3 pb-3 pt-2">
         {/* Island */}
@@ -242,7 +247,7 @@ export default function AuthFooter() {
 
             {/* Plan */}
             <div className="px-3 pt-2">
-              {plan === "free" ? (
+              {planMode === "upgrade" && (
                 <>
                   <button
                     onClick={() => setShowPlans((v) => !v)}
@@ -280,7 +285,16 @@ export default function AuthFooter() {
                     </p>
                   )}
                 </>
-              ) : (
+              )}
+              {planMode === "recover" && (
+                <button
+                  onClick={() => void goBilling("portal", t)}
+                  className="w-full rounded-lg py-1.5 text-left text-[12px] font-medium text-navy transition-opacity hover:opacity-70"
+                >
+                  {t("auth.updatePayment")}
+                </button>
+              )}
+              {planMode === "manage" && (
                 <button
                   onClick={() => void goBilling("portal", t)}
                   className="w-full rounded-lg py-1.5 text-left text-[12px] text-slate-600 transition-colors hover:text-navy"
