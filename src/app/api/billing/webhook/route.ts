@@ -96,7 +96,10 @@ export async function POST(request: Request) {
           const priceId = sub.items.data[0]?.price?.id;
           console.error(`[webhook] unknown price id: ${priceId}`);
           Sentry.captureMessage(`[webhook] unknown price id: ${priceId}`);
-          ok = false;
+          // Price ID の catalog が Stripe 側で変わらない限り再送しても解決しない。
+          // 500 で 3 日間再送させると Sentry を spam するだけになるので 200 で受け取り、
+          // operator に Sentry 経由で通知して Portal 経由の手動対応に回す。
+          ok = true;
           break;
         }
         ok = await setPlan(userId, plan, customerId);
@@ -112,7 +115,9 @@ export async function POST(request: Request) {
           const priceId = sub.items.data[0]?.price?.id;
           console.error(`[webhook] unknown price id: ${priceId}`);
           Sentry.captureMessage(`[webhook] unknown price id: ${priceId}`);
-          ok = false;
+          // 同上。旧 Price ID の subscription が catalog 変更を跨いだケース等。
+          // 500 リトライは無効なので 200 で受けて Sentry 経由で運用対応する。
+          ok = true;
           break;
         }
         ok = await setPlanByCustomer(customerId, plan);
