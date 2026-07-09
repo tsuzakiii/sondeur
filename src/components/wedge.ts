@@ -24,15 +24,30 @@ export function computeWedgeAngles(nodes: SondeurNode[], rootId: string): Map<st
     list.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1));
   }
 
-  // 一回の DFS で葉スロットの範囲 [min, max] を割り当てる
+  // 一回の DFS で葉スロットの範囲 [min, max] を割り当てる。sync-merge の regression 等で
+  // childrenByParent が cycle を持ちうるので visited Set で再訪を止める (store.ts の
+  // depthOf と同じ思想)。cycle を検出したノードは leaf として扱う。
   const ranges = new Map<string, [number, number]>();
+  const visiting = new Set<string>();
   let leafIdx = 0;
   const assign = (id: string): [number, number] => {
+    if (visiting.has(id) || ranges.has(id)) {
+      // cycle 検出 or 既訪 (DAG 状態) は leaf 扱いで自分の slot を返す
+      const cached = ranges.get(id);
+      if (cached) return cached;
+      const slot = leafIdx;
+      leafIdx += 1;
+      const r: [number, number] = [slot, slot];
+      ranges.set(id, r);
+      return r;
+    }
+    visiting.add(id);
     const kids = childrenByParent.get(id) ?? [];
     if (kids.length === 0) {
       const slot = leafIdx;
       leafIdx += 1;
       ranges.set(id, [slot, slot]);
+      visiting.delete(id);
       return [slot, slot];
     }
     let mn = Infinity;
@@ -43,6 +58,7 @@ export function computeWedgeAngles(nodes: SondeurNode[], rootId: string): Map<st
       mx = Math.max(mx, b);
     }
     ranges.set(id, [mn, mx]);
+    visiting.delete(id);
     return [mn, mx];
   };
   assign(rootId);

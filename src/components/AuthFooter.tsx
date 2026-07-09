@@ -130,6 +130,10 @@ export default function AuthFooter() {
 
     void (async () => {
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        // loop 頭で cancelled を確認する。sleep から復帰した直後の attempt では、
+        // effect cleanup で cancel() が呼ばれても for header に到達するまで cancelled
+        // フラグが読まれない。ここで確実に打ち切る。
+        if (cancelled) return;
         const p = await loadProfile();
         if (cancelled) return;
         if (billingReturn !== "success" || (p && p.plan !== "free")) {
@@ -137,7 +141,10 @@ export default function AuthFooter() {
           clearBillingReturnStatus();
           return;
         }
-        setSlowNote(shouldShowSlowNote(attempt, p?.plan ?? "free"));
+        // p が null (fetch 失敗) の時は null を渡す。shouldShowSlowNote は plan === "free"
+        // だけを true とするので null は false になり、fetch 失敗中に slow note が誤って
+        // 出ることはない。
+        setSlowNote(shouldShowSlowNote(attempt, p?.plan ?? null));
         if (attempt < maxAttempts - 1) {
           // effect cleanup で cancel できる sleep。fake sleep で await の残置なく
           // ループを閉じる (#8 / L1)。

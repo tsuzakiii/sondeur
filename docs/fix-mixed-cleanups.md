@@ -4,13 +4,13 @@ Closes #7 (M4), #8 (L1), #9 (L2), #10 (L3), #11 (L4).
 Branch: `fix/mixed-cleanups`
 Base: `master`
 
-Five independent defects surfaced by the earlier pr-merge-review that share no code paths beyond three files. Bundled into one PR because each is a 1-10 line change and none depend on the others.
+Five independent defects surfaced by the earlier pr-merge-review that share no code paths beyond three files. Bundled into one PR because each is small in scope (a few functions or a doc section) and none depend on the others.
 
 ## Fix scope
 
 ### 1. AuthFooter polling — `src/components/AuthFooter.tsx`
 
-- **M4 (#7)**: raise `maxAttempts` from 10 to 30 (interval unchanged at 1.5s), so the checkout-success polling covers ~45s of webhook delay instead of ~15s. Add a "billing.slowNote" i18n string that renders inside the billing success notice once `attempt >= 10` and the profile is still Free — telling the user "反映に時間がかかっています / Taking longer than usual. Try refreshing." The note is rendered inline in the success notice, no new component. When polling finally sees a non-Free plan, the note disappears with the notice.
+- **M4 (#7)**: raise `maxAttempts` from 10 to 30 (interval unchanged at 1.5s), so the checkout-success polling covers ~45s of webhook delay instead of ~15s. Add a "billing.slowNote" i18n string that renders inline **under the Plan label in the AuthFooter island** (not inside the page.tsx success notice — kept adjacent to the plan display it explains) once `attempt >= 10` and the fetched profile plan is still Free. The note reads "反映に時間がかかっています / Taking longer than usual. Try refreshing." When polling finally sees a non-Free plan, the note disappears.
 - **L1 (#8)**: replace the inter-attempt `await new Promise(r => window.setTimeout(r, 1500))` with a cancellable sleep. Approach: the effect scope holds a `cleanupSleep: (() => void) | null` reference. Each sleep call assigns `cleanupSleep = () => { window.clearTimeout(handle); resolve(); }` and clears itself after the timer fires or after being invoked. The effect's cleanup, in addition to setting `cancelled = true`, calls `cleanupSleep?.()` which both `clearTimeout`s the pending timer AND resolves the outstanding promise so `await` unblocks. The loop head then observes `cancelled = true` and returns. No extra Supabase fetch fires after the cleanup runs, and no promise stays pending forever.
 
 ### 2. GraphView wedge — `src/components/GraphView.tsx`
@@ -51,10 +51,11 @@ Five independent defects surfaced by the earlier pr-merge-review that share no c
 - **jsdom / testing-library adoption for component render tests** — AC-M4-1/2 and AC-L1-1 are verified via helper extraction and `vi.useFakeTimers()`, not via `AuthFooter` component render. Adding React DOM testing infrastructure is a separate proposal.
 - **Supabase realtime for M4** — separate, larger design.
 - **Sync-side prevention of cycle creation for L3** — this hotfix only guards the readers; preventing the writer from producing cycles is out.
+- **Polling location (mobile sidebar collapsed → AuthFooter unmounted → polling does not start)** — this is a structural gap surfaced by the per-commit review of this branch. Moving the polling out of the UI layer (into `authState.ts` or `page.tsx`) is a scope-widening design change tracked separately as [#12](https://github.com/tsuzakiii/sondeur/issues/12). This PR keeps polling in `AuthFooter`; the 10→30 attempt extension and cancellableSleep still deliver value when the sidebar is open, which is the desktop path and the mobile path once the user opens the drawer.
 
 ## Blast radius (self-declared)
 
-- Files touched: `src/components/AuthFooter.tsx` (M4 + L1), `src/components/GraphView.tsx` (L2, computeWedgeAngles extracted), `src/lib/store.ts` (L3, cycle guards), `src/lib/i18n.tsx` (M4, new key), `docs/pricing-model.md` (L4), `src/lib/__tests__/store.test.ts` (L3 tests), and possibly a new file for extracted `computeWedgeAngles` if extraction is chosen for testability.
+- Files touched: `src/components/AuthFooter.tsx` (M4 + L1), `src/components/GraphView.tsx` (L2 imports the extracted module + cycle guard on `walk`/`countDescendants`), `src/components/wedge.ts` (new, L2), `src/components/__tests__/wedge.test.ts` (new), `src/lib/cancellableSleep.ts` (new, L1), `src/lib/__tests__/cancellableSleep.test.ts` (new), `src/lib/pollingSlowNote.ts` (new, M4 predicate), `src/lib/__tests__/pollingSlowNote.test.ts` (new), `src/lib/store.ts` (L3 cycle guards on `depthOf` / `pathToNode`), `src/lib/__tests__/store.test.ts` (L3 tests appended), `src/lib/i18n.tsx` (M4 new key), `docs/pricing-model.md` (L4), `docs/fix-mixed-cleanups.md` (this spec).
 - No API routes touched. No dependency added. No CI change.
 
 ## Platform impact
