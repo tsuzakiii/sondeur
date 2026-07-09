@@ -19,6 +19,7 @@ import { depthOf } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import type { SondeurNode, Tree } from "@/lib/types";
 import { RING, computeWedgeAngles } from "./wedge";
+import { computeVisibleWalk } from "./visibleWalk";
 
 interface SimNode extends SimulationNodeDatum {
   id: string;
@@ -67,33 +68,7 @@ export default function GraphView({
 
   // collapsed ノードの子孫を除いた可視ノード集合
   const { visibleNodes, visibleLinks, hiddenCount } = useMemo(() => {
-    const visible: SondeurNode[] = [];
-    const hidden = new Map<string, number>();
-    // parentId が cycle した壊れたツリーで stack overflow しないよう visited Set で
-    // 再訪を止める (store.ts の depthOf / wedge.ts の assign と同じ思想)。
-    const seenDescendant = new Set<string>();
-    const countDescendants = (id: string): number => {
-      if (seenDescendant.has(id)) return 0;
-      seenDescendant.add(id);
-      return Object.values(tree.nodes)
-        .filter((n) => n.parentId === id)
-        .reduce((acc, c) => acc + 1 + countDescendants(c.id), 0);
-    };
-    const walked = new Set<string>();
-    const walk = (id: string) => {
-      if (walked.has(id)) return;
-      walked.add(id);
-      const node = tree.nodes[id];
-      if (!node) return;
-      visible.push(node);
-      if (node.collapsed) {
-        hidden.set(id, countDescendants(id));
-        return;
-      }
-      const children = Object.values(tree.nodes).filter((n) => n.parentId === id);
-      for (const c of children) walk(c.id);
-    };
-    walk(tree.rootNodeId);
+    const { visibleNodes: visible, hiddenCount: hidden } = computeVisibleWalk(tree);
     const links = visible
       .filter((n) => n.parentId && n.edgeType !== "root")
       .map((n) => ({ source: n.parentId!, target: n.id, edgeType: n.edgeType as "what" | "why" | "ask" }));

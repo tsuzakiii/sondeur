@@ -187,7 +187,7 @@ describe("depthOf / pathToNode cycle safety (AC-L3-1)", () => {
     const { depthOf } = await freshStore();
     const nodesArr: ReturnType<typeof makeNode>[] = [];
     for (let i = 0; i <= 50; i += 1) {
-      nodesArr.push(makeNode(`n${i}`, i === 0 ? null : `n${i-1}`));
+      nodesArr.push(makeNode(`n${i}`, i === 0 ? null : `n${i - 1}`));
     }
     const tree = makeTree(nodesArr);
     expect(depthOf(tree, "n50")).toBe(50);
