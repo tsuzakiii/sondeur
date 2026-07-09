@@ -14,15 +14,19 @@ export async function tryAcquireCheckoutLock(userId: string): Promise<AcquireRes
     const { data, error } = await supabase.rpc("try_acquire_checkout_lock", {
       p_user_id: userId,
     });
+    // review-r1 B2: RPC error は race loser と区別して "unavailable" を返す。
+    // migration 未適用 (RPC not found) や DB 障害を 409 "checkout in progress" と
+    // 誤ってユーザーに見せると operator が silent misconfig に気付けない。route は
+    // "unavailable" を 503 にマップする。
     if (error) {
       Sentry.captureException(error);
-      return null;
+      return "unavailable";
     }
     if (typeof data === "string" && data.length > 0) return data;
     return null;
   } catch (e) {
     Sentry.captureException(e);
-    return null;
+    return "unavailable";
   }
 }
 

@@ -226,4 +226,29 @@ describe("clearInFlightSession (AC-#15-3)", () => {
     expect(eq).toHaveBeenCalledWith("id", "uid");
     expect(eq).toHaveBeenCalledWith("in_flight_checkout_session_id", "cs_target");
   });
+
+  it("review-r1 B1: throws when Supabase returns error (no silent swallow)", async () => {
+    const err = new Error("db down");
+    const eq2 = vi.fn(() =>
+      Promise.resolve({ error: err })
+    );
+    const eq1 = vi.fn(() => ({ eq: eq2 }));
+    const update = vi.fn(() => ({ eq: eq1 }));
+    const from = vi.fn(() => ({ update }));
+    const supabase = { from } as unknown as SupabaseClient;
+    await expect(clearInFlightSession(supabase, "uid", "cs_target")).rejects.toThrow("db down");
+  });
+
+  it("Session-ID mismatch semantics: WHERE clause carries both conditions so a stale webhook cannot clear a newer pointer", async () => {
+    // Postgres 側の UPDATE...WHERE の runtime 保証を verify するのは integration test
+    // の領分。ここでは chain の shape が「id AND in_flight_checkout_session_id」の両方を
+    // eq で filter しているかだけを確認する (WHERE guard が実装で drop されたら fail)。
+    const { supabase, eq } = supabaseCapturingUpdate();
+    await clearInFlightSession(supabase, "uidA", "cs_stale");
+    const calls = eq.mock.calls;
+    // 順番と回数を明示的に確認
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toEqual(["id", "uidA"]);
+    expect(calls[1]).toEqual(["in_flight_checkout_session_id", "cs_stale"]);
+  });
 });

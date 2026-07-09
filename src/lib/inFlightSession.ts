@@ -2,6 +2,7 @@
 
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/nextjs";
 
 // Stripe 側で expire 前に他 tab が該当 Session の pay を完了した状態。
 // route はこれを catch して 409 "checkout already completed" を返す。
@@ -61,7 +62,7 @@ export async function expireInFlightSessionIfDifferentPlan(
 
   // impl-r7-F2: 同 plan でも Session が既に expired なら pointer clear
   if (status === "expired") {
-    await clearInFlightSession(supabase, userId, sessionId);
+    await safeClearInFlightSession(supabase, userId, sessionId);
     return "cleared";
   }
   // branch-r1-F1: complete は別 tab で payment 完了済み = subscription が生まれる/生まれた。
@@ -103,14 +104,33 @@ export async function recordInFlightSession(
 
 // webhook が使う。Session-ID 一致条件で clear するので、古い Session の webhook
 // が新 pointer を消してしまう F4/F5 (r6) の race を塞ぐ。
+// review-r1 B1: Supabase error は throw する (silent 吸収は permanent stuck を招く)。
+// webhook は error を catch して ok=false にすることで Stripe に retry させる。
 export async function clearInFlightSession(
   supabase: SupabaseClient,
   userId: string,
   sessionId: string
 ): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from("profiles")
     .update({ in_flight_checkout_session_id: null })
     .eq("id", userId)
     .eq("in_flight_checkout_session_id", sessionId);
+  if (error) throw error;
+}
+
+// checkout route の in-flight cleanup 中に呼ばれるバリアント。ここで throw すると
+// route 全体が 500 で失敗するが、実際は「clear が失敗しても Stripe API 側の expire は
+// 済んでいる = invariant は保たれている」ため fatal ではない。error を Sentry に送って
+// 通過し、pointer は次 checkout の cleanup で再度掃除される (self-heal)。
+async function safeClearInFlightSession(
+  supabase: SupabaseClient,
+  userId: string,
+  sessionId: string
+): Promise<void> {
+  try {
+    await clearInFlightSession(supabase, userId, sessionId);
+  } catch (e) {
+    Sentry.captureException(e);
+  }
 }
