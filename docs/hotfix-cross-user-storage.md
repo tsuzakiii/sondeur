@@ -53,9 +53,11 @@ Scope the profile cache by user id and prevent every path where uidA's data coul
 
 **Auth-effect ordering**: the `useEffect([auth])` body does NOT call `setProfile(null)` at the top. Reason: the `react-hooks/set-state-in-effect` rule (enabled in `.github/workflows/ci.yml` by the release-readiness PR that merges before this one) rejects unconditional synchronous setState inside effects, and the render-time wall already closes the direct-switch leak without an effect-level reset.
 
-The effect tracks the previous `auth.kind` in a `useRef<"signedOut" | "signedIn" | null>(null)` so it can distinguish two `auth.kind === "signedOut"` cases:
-- **initial mount, Supabase not yet resolved** (`prevKind === null`) — do NOT call `clearAllCachedProfiles()`, because clearing here would erase the same user's optimistic-paint cache before their session even resolves.
-- **explicit signout transition** (`prevKind === "signedIn"`) — call `clearAllCachedProfiles()` to wipe every per-user key and the legacy unscoped key.
+The effect tracks the previously observed `auth.kind` in a **module-level** variable (`lastObservedAuthKind`) — not a `useRef` — so the value survives across `AuthFooter` unmount/remount cycles. On mobile the sidebar is initially collapsed and `Sidebar.tsx` early-returns before rendering `AuthFooter`, so `AuthFooter` unmounts whenever the drawer closes. A component-local `useRef` would reset to `null` on the next mount, and a session that expired in another tab during the collapsed period would be misclassified as an initial mount (`prevKind === null`), which would skip the cache wipe on real signout. The module-level variable is unaffected by unmount and correctly carries the last observed `auth.kind` across.
+
+The two cases the effect distinguishes:
+- **initial mount, no prior observation** (`prevKind === null`) — do NOT call `clearAllCachedProfiles()`. Auth may still be resolving (Supabase hydration in-flight), or the previous session was signedIn and the app was just reloaded with the same user about to be re-established; clearing here would erase optimistic-paint cache for a legitimate returning user. The module-level tracker resets only on hard page reload — a fresh SPA lifecycle.
+- **explicit signout transition** (`prevKind === "signedIn"`) — call `clearAllCachedProfiles()` to wipe every per-user key and the legacy unscoped key. This catches signouts that happen while `AuthFooter` is unmounted, because the module-level tracker still held `"signedIn"` from the last time `AuthFooter` observed the auth state.
 
 The signedIn branch reads `cached = loadCachedProfile(auth.userId)`. If non-null, defers `setProfile({ ...cached, userId: auth.userId, used: cached.monthKey === mk ? cached.used : 0 })` via `window.setTimeout(fn, 0)`, guarded by a `cancelled` flag inside the callback and `clearTimeout` in the effect's cleanup. Then starts the profile-fetch loop (unchanged; every save/setProfile inside it uses `userId: uid`).
 

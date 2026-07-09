@@ -18,6 +18,14 @@ import {
 
 const PLAN_LABEL: Record<string, string> = { free: "Free", standard: "Standard", pro: "Pro" };
 
+// Component unmount / remount を跨いで「直前に観測した auth.kind」を保持する module-level
+// state。useRef だと Sidebar 折り畳み → AuthFooter unmount の間に別 tab で signout が
+// 発火した場合に prev == null に戻ってしまい、次 mount 時に「初回 signedOut」と誤検出
+// して cache clear がスキップされる。module-level なら AuthFooter が unmount しても値が
+// 保持されるので、mount 直後の auth.kind === "signedOut" が過去 signedIn からの明示的な
+// signout であることを判別できる。ページリロード時はゼロに戻る (仕様上の限界)。
+let lastObservedAuthKind: AuthInfo["kind"] | null = null;
+
 function currentMonthKey(): string {
   const d = new Date();
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -71,21 +79,20 @@ export default function AuthFooter() {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [showPlans, setShowPlans] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  // 直前の auth.kind を保持する。初回 mount 時の signedOut (Supabase resolve 前) を、
-  // 実際のログアウト遷移 (以前 signedIn だった) と区別するために使う。前者では cache を
-  // 消さず optimistic paint の余地を残す。
-  const prevAuthKindRef = useRef<AuthInfo["kind"] | null>(null);
 
   useEffect(() => {
-    const prevKind = prevAuthKindRef.current;
-    prevAuthKindRef.current = auth.kind;
+    // 明示的な signedIn → signedOut 遷移のみで localStorage 名前空間を掃除する。
+    // prevKind の追跡は module-level (lastObservedAuthKind) で行うので、Sidebar 折り畳み
+    // で AuthFooter が unmount している間に別 tab で signout が起きても、次回 mount 時に
+    // signedIn からの遷移として正しく検出できる。
+    // 初回起動 (prevKind === null) の signedOut は Supabase 未 resolve の可能性が高く、
+    // ここで clear すると同一ユーザーの復帰時に optimistic paint が失われるためスキップする。
+    // in-memory の profile state は setProfile(null) で reset せず、render 時の
+    // resolveDisplayProfile が auth.userId mismatch を検出して null 化するのに任せる。
+    const prevKind = lastObservedAuthKind;
+    lastObservedAuthKind = auth.kind;
 
     if (auth.kind !== "signedIn") {
-      // signedIn → signedOut の明示的ログアウト時のみ localStorage 名前空間を掃除する。
-      // 初回 mount (prevKind === null) の signedOut は auth 未 resolve の可能性が高く、
-      // ここで clear すると同一ユーザーの復帰時に optimistic paint が失われる。
-      // in-memory の profile state は setProfile(null) で reset せず、render 時の
-      // resolveDisplayProfile が auth.userId mismatch を検出して null 化するのに任せる。
       if (prevKind === "signedIn") {
         clearAllCachedProfiles();
       }
