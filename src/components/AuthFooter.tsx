@@ -2,14 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import type { AuthInfo } from "@/lib/authState";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { signInWithEmail, signOut, useAuthInfo } from "@/lib/authState";
 import { PLAN_NODE_LIMITS } from "@/lib/planLimits";
 import { useI18n, useLocale, LOCALES } from "@/lib/i18n";
 import { clearBillingReturnStatus, readBillingReturnStatus } from "@/lib/billingReturn";
 import {
-  clearAllCachedProfiles,
   loadCachedProfile,
   resolveDisplayProfile,
   saveCachedProfile,
@@ -17,14 +15,6 @@ import {
 } from "./authFooterCache";
 
 const PLAN_LABEL: Record<string, string> = { free: "Free", standard: "Standard", pro: "Pro" };
-
-// Component unmount / remount を跨いで「直前に観測した auth.kind」を保持する module-level
-// state。useRef だと Sidebar 折り畳み → AuthFooter unmount の間に別 tab で signout が
-// 発火した場合に prev == null に戻ってしまい、次 mount 時に「初回 signedOut」と誤検出
-// して cache clear がスキップされる。module-level なら AuthFooter が unmount しても値が
-// 保持されるので、mount 直後の auth.kind === "signedOut" が過去 signedIn からの明示的な
-// signout であることを判別できる。ページリロード時はゼロに戻る (仕様上の限界)。
-let lastObservedAuthKind: AuthInfo["kind"] | null = null;
 
 function currentMonthKey(): string {
   const d = new Date();
@@ -81,23 +71,12 @@ export default function AuthFooter() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // 明示的な signedIn → signedOut 遷移のみで localStorage 名前空間を掃除する。
-    // prevKind の追跡は module-level (lastObservedAuthKind) で行うので、Sidebar 折り畳み
-    // で AuthFooter が unmount している間に別 tab で signout が起きても、次回 mount 時に
-    // signedIn からの遷移として正しく検出できる。
-    // 初回起動 (prevKind === null) の signedOut は Supabase 未 resolve の可能性が高く、
-    // ここで clear すると同一ユーザーの復帰時に optimistic paint が失われるためスキップする。
+    // localStorage 名前空間の掃除は authState.ts (認証遷移を扱う唯一の場所) が担当する。
+    // AuthFooter は UI 遅延生成される (mobile では sidebar 折り畳み中 unmount) ので、
+    // ここに signout 検出を置くと mount していない間の signout を取り逃がす。
     // in-memory の profile state は setProfile(null) で reset せず、render 時の
     // resolveDisplayProfile が auth.userId mismatch を検出して null 化するのに任せる。
-    const prevKind = lastObservedAuthKind;
-    lastObservedAuthKind = auth.kind;
-
-    if (auth.kind !== "signedIn") {
-      if (prevKind === "signedIn") {
-        clearAllCachedProfiles();
-      }
-      return;
-    }
+    if (auth.kind !== "signedIn") return;
     const supabase = getSupabase();
     if (!supabase) return;
     const mk = currentMonthKey();
