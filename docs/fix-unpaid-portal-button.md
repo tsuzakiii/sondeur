@@ -30,7 +30,7 @@ Concretely:
 
 ## Acceptance criteria (machine-checkable)
 
-1. **AC-M3-1** — `src/components/AuthFooter.tsx` computes a `mode` value that is `"recover"` iff `plan === "free" && displayProfile?.hasStripe === true`. Verify by targeted read of the render function.
+1. **AC-M3-1** — `src/components/AuthFooter.tsx` computes a `mode` value that is `"recover"` iff `(plan === "free" || plan == null) && displayProfile?.hasStripe === true`. The `plan == null` inclusion is deliberate: a signed-in user with `hasStripe === true` but no plan value yet (initial mount before the polling loop resolves) is almost certainly a returning subscriber whose row is populated; routing them to Portal is the safer default than showing Upgrade + risking a 409 on click. Verify by targeted read of the render function.
 2. **AC-M3-2** — the `recover` branch renders exactly one button that calls `goBilling("portal", t)` and its label reads `t("auth.updatePayment")`.
 3. **AC-M3-3** — the `upgrade` branch's condition is `plan === "free" && !hasStripe` (not simply `plan === "free"`). New Free users (`hasStripe === false`) still see Standard / Pro Upgrade cards.
 4. **AC-M3-4** — `src/lib/i18n.tsx` defines `auth.updatePayment` in en (`"Update payment method"`) and ja (`"支払い方法を更新"`).
