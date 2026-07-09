@@ -122,3 +122,74 @@ describe("no legacy state present", () => {
     expect(globalThis.window!.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 });
+
+describe("depthOf / pathToNode cycle safety (AC-L3-1)", () => {
+  const makeNode = (id: string, parentId: string | null) => ({
+    id,
+    treeId: "t",
+    parentId,
+    edgeType: (parentId ? "what" : "root") as "what" | "root",
+    selectedSpan: "",
+    spanStart: -1,
+    spanEnd: -1,
+    content: "",
+    status: "done" as const,
+    collapsed: false,
+    createdAt: 0,
+  });
+  const makeTree = (nodesArr: ReturnType<typeof makeNode>[]) => {
+    const nodes: Record<string, ReturnType<typeof makeNode>> = {};
+    for (const n of nodesArr) nodes[n.id] = n;
+    return {
+      id: "t",
+      title: "t",
+      rootNodeId: nodesArr[0].id,
+      nodes,
+      createdAt: 0,
+      updatedAt: 0,
+    };
+  };
+
+  it("(a) depthOf on 2-node parentId cycle returns finite, well under hard-cap (visited-Set engaged)", async () => {
+    const { depthOf } = await freshStore();
+    const n1 = makeNode("n1", "n2");
+    const n2 = makeNode("n2", "n1");
+    const tree = makeTree([n1, n2]);
+    const result = depthOf(tree, "n1");
+    expect(Number.isFinite(result)).toBe(true);
+    // visited-Set なら 2 前後、hard-cap-only なら 1000 → 100 未満で visited を確認
+    expect(result).toBeLessThan(100);
+  });
+
+  it("(b) pathToNode on cyclic tree returns bounded array without duplicates", async () => {
+    const { pathToNode } = await freshStore();
+    const n1 = makeNode("n1", "n2");
+    const n2 = makeNode("n2", "n1");
+    const tree = makeTree([n1, n2]);
+    const path = pathToNode(tree, "n1");
+    // 上と同じく visited-Set 経路
+    expect(path.length).toBeLessThan(100);
+    // duplicate なし
+    const ids = new Set(path.map((n) => n.id));
+    expect(ids.size).toBe(path.length);
+  });
+
+  it("(c) depthOf / pathToNode on a 5-node linear tree return correct values (regression)", async () => {
+    const { depthOf, pathToNode } = await freshStore();
+    const chain = ["r", "a", "b", "c", "d"].map((id, i) => makeNode(id, i === 0 ? null : ["r","a","b","c"][i-1]));
+    const tree = makeTree(chain);
+    expect(depthOf(tree, "d")).toBe(4);
+    expect(depthOf(tree, "r")).toBe(0);
+    expect(pathToNode(tree, "d").map((n) => n.id)).toEqual(["r","a","b","c","d"]);
+  });
+
+  it("(d) depthOf on a 50-deep linear tree returns exactly 50 (hard cap does not fire)", async () => {
+    const { depthOf } = await freshStore();
+    const nodesArr: ReturnType<typeof makeNode>[] = [];
+    for (let i = 0; i <= 50; i += 1) {
+      nodesArr.push(makeNode(`n${i}`, i === 0 ? null : `n${i - 1}`));
+    }
+    const tree = makeTree(nodesArr);
+    expect(depthOf(tree, "n50")).toBe(50);
+  });
+});
