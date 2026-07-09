@@ -116,6 +116,7 @@ export async function POST(request: Request) {
       const session = event.data.object;
       const userId = session.client_reference_id;
       const customerId = typeof session.customer === "string" ? session.customer : undefined;
+      let planUpdateHandled = false;
       if (userId && session.subscription) {
         const sub = await stripe.subscriptions.retrieve(
           typeof session.subscription === "string" ? session.subscription : session.subscription.id
@@ -127,14 +128,17 @@ export async function POST(request: Request) {
           console.error(msg);
           Sentry.captureMessage(msg, "warning");
           if (customerId) ok = await setCustomerIdOnly(userId, customerId);
-          break;
+          // branch-r1-F6: unknown price でも event 自体は "session が完了した" 事実。
+          // 追跡している in-flight pointer は clear する。
+          planUpdateHandled = ok;
+        } else {
+          ok = await setPlan(userId, plan, customerId);
+          planUpdateHandled = ok;
         }
-        ok = await setPlan(userId, plan, customerId);
       }
-      // #15 Component 4: 対応する in-flight pointer を掃除する。event の Session ID と
-      // DB pointer が一致した時のみ clear するので、遅延到達した古い webhook が新 pointer
-      // を消してしまう race を防ぐ。
-      if (userId) {
+      // branch-r1-F3: setPlan / setCustomerIdOnly が false (error) の時は clear しない。
+      // Stripe の retry で next attempt の際 pointer が生きている必要があるため。
+      if (userId && planUpdateHandled) {
         const service = getServiceSupabase();
         if (service) await clearInFlightSession(service, userId, session.id);
       }

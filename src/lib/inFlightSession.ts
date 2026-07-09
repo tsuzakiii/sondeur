@@ -59,10 +59,15 @@ export async function expireInFlightSessionIfDifferentPlan(
   const status = retrieved.status;
   const sessionPrice = priceIdFromSession(retrieved);
 
-  // impl-r7-F2: 同 plan でも Session が既に payable でなくなっているなら pointer clear
-  if (status === "expired" || status === "complete") {
+  // impl-r7-F2: 同 plan でも Session が既に expired なら pointer clear
+  if (status === "expired") {
     await clearInFlightSession(supabase, userId, sessionId);
     return "cleared";
+  }
+  // branch-r1-F1: complete は別 tab で payment 完了済み = subscription が生まれる/生まれた。
+  // route は 409 "checkout already completed" を返して新 Session create を止める。
+  if (status === "complete") {
+    throw new SessionAlreadyCompletedError();
   }
 
   if (sessionPrice !== null && sessionPrice === requestedPrice) {

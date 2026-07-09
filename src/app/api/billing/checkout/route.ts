@@ -7,6 +7,7 @@ import {
   expireInFlightSessionIfDifferentPlan,
   recordInFlightSession,
 } from "@/lib/inFlightSession";
+import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 
@@ -30,9 +31,6 @@ export async function POST(request: Request) {
   if (!price) return Response.json({ error: "price not configured" }, { status: 503 });
 
   // Layer 1 (#15 Component 1): per-user lock。認証直後、他の DB/Stripe call の前。
-  // "unavailable" は SUPABASE_SECRET_KEY 未設定 = production は release_check で必須化済み
-  // なので dev 環境のみ発生。fail-CLOSED で 503 を返す。
-  // null = race loser (60s TTL 内に他 request が lock 保持中)。409 で retry を促す。
   const acquired = await tryAcquireCheckoutLock(auth.user.id);
   if (acquired === "unavailable") {
     return Response.json({ error: "billing not configured" }, { status: 503 });
@@ -46,24 +44,38 @@ export async function POST(request: Request) {
   const lockToken = acquired;
 
   try {
-    // 初回 guard: 既存 profile 読み込み。二重課金ガードの前提。
-    const { data: profile, error: profileError } = await auth.supabase
+    // branch-r1-F2/F4: in-flight cleanup を最初の 4xx guard より前に走らせる。
+    // 途中で 409 return する path でも stale pointer が残らないため。
+    const { data: initial, error: initialError } = await auth.supabase
       .from("profiles")
-      .select("plan, stripe_customer_id")
+      .select("plan, stripe_customer_id, in_flight_checkout_session_id")
       .eq("id", auth.user.id)
       .single();
-    if (profileError || !profile) {
+    if (initialError || !initial) {
       return Response.json({ error: "profile unavailable — try again shortly" }, { status: 503 });
     }
-    if (profile.plan && profile.plan !== "free") {
+
+    const service = getServiceSupabase();
+    if (service && initial.in_flight_checkout_session_id) {
+      await expireInFlightSessionIfDifferentPlan(
+        stripe,
+        service,
+        auth.user.id,
+        initial.in_flight_checkout_session_id,
+        price
+      );
+    }
+
+    // 一次 guard (stale snapshot 判定は cleanup 後の fresh 再読で最終確認する)
+    if (initial.plan && initial.plan !== "free") {
       return Response.json(
         { error: "already subscribed — use the billing portal to change plans" },
         { status: 409 }
       );
     }
-    if (profile.stripe_customer_id) {
+    if (initial.stripe_customer_id) {
       const subs = await stripe.subscriptions.list({
-        customer: profile.stripe_customer_id,
+        customer: initial.stripe_customer_id,
         status: "all",
         limit: 10,
       });
@@ -78,29 +90,16 @@ export async function POST(request: Request) {
       }
     }
 
-    // Layer 2 (M2 / #5 PR #16): create の直前で profile を再読して guard を再評価する。
+    // branch-r1-F2: cleanup 中に webhook が profile を更新した可能性を再 read で吸収。
+    // create の decision は fresh の値だけを使う。
     const { data: fresh, error: freshError } = await auth.supabase
       .from("profiles")
-      .select("plan, stripe_customer_id, in_flight_checkout_session_id")
+      .select("plan, stripe_customer_id")
       .eq("id", auth.user.id)
       .single();
     if (freshError || !fresh) {
       return Response.json({ error: "profile unavailable — try again shortly" }, { status: 503 });
     }
-
-    // #15 Component 3: 既存 in-flight Session がある場合、cross-plan なら expire する
-    // (先に走らせて invariant を全 exit path でも保つ)。既に complete していれば 409。
-    const service = getServiceSupabase();
-    if (service && fresh.in_flight_checkout_session_id) {
-      await expireInFlightSessionIfDifferentPlan(
-        stripe,
-        service,
-        auth.user.id,
-        fresh.in_flight_checkout_session_id,
-        price
-      );
-    }
-
     if (fresh.plan && fresh.plan !== "free") {
       return Response.json(
         { error: "already subscribed — use the billing portal to change plans" },
@@ -148,14 +147,15 @@ export async function POST(request: Request) {
     // record が失敗すると invariant (DB pointer が Session を追跡している) が壊れるので、
     // ここでは Session を即 expire して 500 を返す。ユーザーは retry でき、開いたままの
     // 未追跡 Session は残らない。
+    // branch-r1-F5: expire 自体の失敗も Sentry に送る (silently swallow しない)。
     if (service) {
       try {
         await recordInFlightSession(service, auth.user.id, session.id);
       } catch (recErr) {
         try {
           await stripe.checkout.sessions.expire(session.id);
-        } catch {
-          // best effort — Sentry には recErr が上に伝わる
+        } catch (expErr) {
+          Sentry.captureException(expErr);
         }
         throw recErr;
       }

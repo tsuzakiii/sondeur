@@ -10,6 +10,8 @@ create table if not exists public.checkout_locks (
 
 alter table public.checkout_locks enable row level security;
 
+-- branch-r1-F8: 一意の policy 名。過去の apply が別名で残っていた場合の drop も試みる。
+drop policy if exists "no client access" on public.checkout_locks;
 drop policy if exists "no client access to checkout_locks" on public.checkout_locks;
 create policy "no client access to checkout_locks" on public.checkout_locks
   for all to anon, authenticated
@@ -17,6 +19,10 @@ create policy "no client access to checkout_locks" on public.checkout_locks
   with check (false);
 
 revoke all on table public.checkout_locks from anon, authenticated, public;
+-- branch-r1-F7: service_role が明示的に持つべき table grants を宣言する。
+-- SECURITY DEFINER RPC 経由でしか触らないが、production check の "table grants = service_role のみ"
+-- 判定を成立させるため。
+grant select, insert, update, delete on table public.checkout_locks to service_role;
 
 -- 2) SECURITY DEFINER RPCs (service_role 経由でのみ呼び出される)
 

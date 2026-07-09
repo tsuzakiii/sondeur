@@ -79,6 +79,32 @@ describe("expireInFlightSessionIfDifferentPlan (AC-#15-3)", () => {
     expect((stripe.checkout.sessions.expire as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
   });
 
+  it("branch-r1-F1: same plan but Session status complete → throws SessionAlreadyCompletedError (not 'cleared')", async () => {
+    const stripe = stripeMock({
+      retrieveResult: {
+        status: "complete",
+        line_items: { data: [{ price: { id: "price_standard" } }] },
+      },
+    });
+    const { supabase } = supabaseCapturingUpdate();
+    await expect(
+      expireInFlightSessionIfDifferentPlan(stripe, supabase, "uid", "cs_prev", "price_standard")
+    ).rejects.toBeInstanceOf(SessionAlreadyCompletedError);
+  });
+
+  it("retrieve is called with expand: ['line_items']", async () => {
+    const stripe = stripeMock({
+      retrieveResult: {
+        status: "open",
+        line_items: { data: [{ price: { id: "price_standard" } }] },
+      },
+    });
+    const { supabase } = supabaseCapturingUpdate();
+    await expireInFlightSessionIfDifferentPlan(stripe, supabase, "uid", "cs_prev", "price_standard");
+    const retrieveMock = stripe.checkout.sessions.retrieve as ReturnType<typeof vi.fn>;
+    expect(retrieveMock).toHaveBeenCalledWith("cs_prev", { expand: ["line_items"] });
+  });
+
   it("impl-r7-F2: same plan but Session status expired → returns 'cleared' and no expire call", async () => {
     const stripe = stripeMock({
       retrieveResult: {
