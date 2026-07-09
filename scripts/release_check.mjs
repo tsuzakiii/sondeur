@@ -103,7 +103,7 @@ const migrationDir = join(root, "supabase", "migrations");
 const migrations = existsSync(migrationDir) ? readdirSync(migrationDir).sort() : [];
 // Supabase の migration file 名は `<4桁 ID>_<slug>.sql`。id+`_` の前方一致だけだと
 // `0001_notes.txt` のような別拡張子が通ってしまうので、.sql 拡張子まで含めて確認する。
-for (const id of ["0001", "0002", "0003", "0004", "0005", "0006"]) {
+for (const id of ["0001", "0002", "0003", "0004", "0005", "0006", "0007"]) {
   const pattern = new RegExp(`^${id}_.*\\.sql$`);
   if (!migrations.some((name) => pattern.test(name))) fail(`Supabase migration ${id} is missing locally`);
 }
