@@ -45,11 +45,19 @@ describe("tryAcquireCheckoutLock (AC-#15-2)", () => {
     expect(captureExceptionMock).not.toHaveBeenCalled();
   });
 
-  it("(d) client returns error → returns null, Sentry called", async () => {
+  it("(d) client returns error → returns 'unavailable' (review-r1 B2: distinguish RPC error from race loser), Sentry called", async () => {
     const err = new Error("db down");
     const rpc = vi.fn(async () => ({ data: null, error: err }));
     getServiceSupabaseMock.mockReturnValue({ rpc });
-    expect(await tryAcquireCheckoutLock("uid-1")).toBeNull();
+    expect(await tryAcquireCheckoutLock("uid-1")).toBe("unavailable");
+    expect(captureExceptionMock).toHaveBeenCalledWith(err);
+  });
+
+  it("review-r1 B2: RPC throws → returns 'unavailable', Sentry called", async () => {
+    const err = new Error("network");
+    const rpc = vi.fn(async () => { throw err; });
+    getServiceSupabaseMock.mockReturnValue({ rpc });
+    expect(await tryAcquireCheckoutLock("uid-1")).toBe("unavailable");
     expect(captureExceptionMock).toHaveBeenCalledWith(err);
   });
 });

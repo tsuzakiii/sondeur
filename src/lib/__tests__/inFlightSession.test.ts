@@ -179,6 +179,66 @@ describe("expireInFlightSessionIfDifferentPlan (AC-#15-3)", () => {
     ).rejects.toThrow("rate limit");
   });
 
+  it("review-r1 B1 asymmetry: Supabase clear error during status='expired' path is swallowed (safeClearInFlightSession), returns 'cleared'", async () => {
+    // Verify the route-side asymmetry: when Stripe expire has already succeeded
+    // (or the Session is already expired), a transient DB blip should NOT surface
+    // as a route 500. If a future edit reverts `safeClearInFlightSession` → throwing
+    // `clearInFlightSession` at inFlightSession.ts:65 (or removes the safe wrapper),
+    // this test fails.
+    const stripe = stripeMock({
+      retrieveResult: {
+        status: "expired",
+        line_items: { data: [{ price: { id: "price_standard" } }] },
+      },
+    });
+    // Custom Supabase mock: `.update().eq().eq()` resolves with an error
+    const err = new Error("db down");
+    const finalEq = vi.fn(() => Promise.resolve({ error: err }));
+    const eq1 = vi.fn(() => ({ eq: finalEq }));
+    const update = vi.fn(() => ({ eq: eq1 }));
+    const from = vi.fn(() => ({ update }));
+    const supabase = { from } as unknown as SupabaseClient;
+
+    const outcome = await expireInFlightSessionIfDifferentPlan(
+      stripe,
+      supabase,
+      "uid",
+      "cs_prev",
+      "price_standard"
+    );
+    // safeClearInFlightSession catches the error → returns "cleared" instead of throwing
+    expect(outcome).toBe("cleared");
+  });
+
+  it("review-r1 B1 asymmetry: Supabase clear error during expire-succeeded path is also swallowed", async () => {
+    // Second `safeClearInFlightSession` call site (inFlightSession.ts:87 after successful
+    // Stripe expire). Same asymmetry: DB blip must not 500 the route when Stripe already
+    // did its job.
+    const stripe = stripeMock({
+      retrieveResult: {
+        status: "open",
+        line_items: { data: [{ price: { id: "price_pro" } }] },
+      },
+    });
+    const err = new Error("db down");
+    const finalEq = vi.fn(() => Promise.resolve({ error: err }));
+    const eq1 = vi.fn(() => ({ eq: finalEq }));
+    const update = vi.fn(() => ({ eq: eq1 }));
+    const from = vi.fn(() => ({ update }));
+    const supabase = { from } as unknown as SupabaseClient;
+
+    const outcome = await expireInFlightSessionIfDifferentPlan(
+      stripe,
+      supabase,
+      "uid",
+      "cs_prev",
+      "price_standard"
+    );
+    expect(outcome).toBe("cleared");
+    // Stripe expire was called (different-plan path)
+    expect((stripe.checkout.sessions.expire as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith("cs_prev");
+  });
+
   it("impl-r7-F3: missing line_items → conservatively expires (safest for invariant)", async () => {
     const stripe = stripeMock({
       retrieveResult: { status: "open" }, // no line_items
@@ -225,5 +285,30 @@ describe("clearInFlightSession (AC-#15-3)", () => {
     // eq が id=uid と in_flight_checkout_session_id=cs_target の 2 回呼ばれる
     expect(eq).toHaveBeenCalledWith("id", "uid");
     expect(eq).toHaveBeenCalledWith("in_flight_checkout_session_id", "cs_target");
+  });
+
+  it("review-r1 B1: throws when Supabase returns error (no silent swallow)", async () => {
+    const err = new Error("db down");
+    const eq2 = vi.fn(() =>
+      Promise.resolve({ error: err })
+    );
+    const eq1 = vi.fn(() => ({ eq: eq2 }));
+    const update = vi.fn(() => ({ eq: eq1 }));
+    const from = vi.fn(() => ({ update }));
+    const supabase = { from } as unknown as SupabaseClient;
+    await expect(clearInFlightSession(supabase, "uid", "cs_target")).rejects.toThrow("db down");
+  });
+
+  it("Session-ID mismatch semantics: WHERE clause carries both conditions so a stale webhook cannot clear a newer pointer", async () => {
+    // Postgres 側の UPDATE...WHERE の runtime 保証を verify するのは integration test
+    // の領分。ここでは chain の shape が「id AND in_flight_checkout_session_id」の両方を
+    // eq で filter しているかだけを確認する (WHERE guard が実装で drop されたら fail)。
+    const { supabase, eq } = supabaseCapturingUpdate();
+    await clearInFlightSession(supabase, "uidA", "cs_stale");
+    const calls = eq.mock.calls;
+    // 順番と回数を明示的に確認
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toEqual(["id", "uidA"]);
+    expect(calls[1]).toEqual(["in_flight_checkout_session_id", "cs_stale"]);
   });
 });

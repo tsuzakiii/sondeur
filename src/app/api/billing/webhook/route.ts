@@ -138,21 +138,40 @@ export async function POST(request: Request) {
       }
       // branch-r1-F3: setPlan / setCustomerIdOnly が false (error) の時は clear しない。
       // Stripe の retry で next attempt の際 pointer が生きている必要があるため。
+      // review-r1 B1: clearInFlightSession が throw した場合も ok=false にして Stripe に
+      // retry させる。silent 200 を返して pointer 残しはユーザーを permanent stuck に
+      // 追い込む (complete 状態は self-heal 経路が無いため)。
       if (userId && planUpdateHandled) {
         const service = getServiceSupabase();
-        if (service) await clearInFlightSession(service, userId, session.id);
+        if (service) {
+          try {
+            await clearInFlightSession(service, userId, session.id);
+          } catch (clearErr) {
+            console.error("[webhook] clearInFlightSession failed", clearErr);
+            Sentry.captureException(clearErr);
+            ok = false;
+          }
+        }
       }
       break;
     }
     case "checkout.session.expired": {
       // Stripe が自然 expire (24h) or 明示 expire を通知してくる。in-flight pointer を
       // 掃除する。userId が event に無い (稀に client_reference_id 未設定の Session)
-      // 場合はスキップ (safe)。
+      // 場合はスキップ (safe)。review-r1 B1: 同上、error は ok=false で Stripe retry へ。
       const session = event.data.object;
       const userId = session.client_reference_id;
       if (userId) {
         const service = getServiceSupabase();
-        if (service) await clearInFlightSession(service, userId, session.id);
+        if (service) {
+          try {
+            await clearInFlightSession(service, userId, session.id);
+          } catch (clearErr) {
+            console.error("[webhook] clearInFlightSession failed", clearErr);
+            Sentry.captureException(clearErr);
+            ok = false;
+          }
+        }
       }
       break;
     }
