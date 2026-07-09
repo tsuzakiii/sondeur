@@ -310,8 +310,10 @@ export default function Home() {
                   <span><span className="font-semibold" style={{ color: "#b8912a" }}>Ask</span> — {t("graph.askDesc")}</span>
                 </div>
               </div>
-              <div className="fixed inset-x-0 bottom-5 flex justify-center">
-              <div className="neu-raised fade-up flex w-[min(36rem,55vw)] gap-2 rounded-2xl p-2 max-md:w-[calc(100vw-1.5rem)]">
+              {/* pointer-events-none 必須: この帯は全幅で、左下の AuthFooter に被さって
+                  クリックを食う (2026-07-10 に実際に起きた)。子側だけ auto に戻す */}
+              <div className="pointer-events-none fixed inset-x-0 bottom-5 flex justify-center">
+              <div className="neu-raised fade-up pointer-events-auto flex w-[min(36rem,55vw)] gap-2 rounded-2xl p-2 max-md:w-[calc(100vw-1.5rem)]">
                 <input
                   autoFocus
                   value={question}

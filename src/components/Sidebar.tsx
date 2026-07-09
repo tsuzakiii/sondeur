@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import AuthFooter from "./AuthFooter";
+import { useAuthInfo } from "@/lib/authState";
 import { useI18n } from "@/lib/i18n";
 import { setShared } from "@/lib/store";
 import type { SondeurNode, Tree } from "@/lib/types";
@@ -67,7 +68,11 @@ export default function Sidebar({
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string; active: boolean; time: string; nodeText: string } | null>(null);
   const [deleteRect, setDeleteRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [deleteExpanded, setDeleteExpanded] = useState(false);
-  const [shareToast, setShareToast] = useState<string | null>(null);
+  // 共有操作の結果フィードバック。ok=false は失敗の ✕ 表示 (無言失敗の禁止)
+  const [shareToast, setShareToast] = useState<{ id: string; ok: boolean } | null>(null);
+  const auth = useAuthInfo();
+  // ゲストのツリーはサーバーに存在しないので共有は原理的に不可 → ボタン自体を出さない
+  const canShare = auth.kind === "signedIn";
   // Sidebar は unmount しない (この component 内の !open 分岐が早期 return するだけで
   // 常に mount されている) ので、Date.now() を 1 分刻みで更新する。lint の
   // `Cannot call impure function during render` を避けつつ「N 分前 → M 分前」が経時で
@@ -224,37 +229,36 @@ export default function Sidebar({
                 <span>{relativeTime(tr.updatedAt)}</span>
                 <span>·</span>
                 <span>{t(nodeCount === 1 ? "sidebar.node" : "sidebar.nodes", { count: nodeCount })}</span>
+                {canShare && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (tr.shared) {
-                      void fetch("/api/share", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ treeId: tr.id, shared: false }),
-                      }).then((res) => {
-                        if (res.ok) {
-                          setShared(tr.id, false);
-                          setShareToast(tr.id);
-                          setTimeout(() => setShareToast((v) => v === tr.id ? null : v), 1500);
-                        }
-                      });
-                    } else {
-                      const url = `${window.location.origin}/s/${tr.id}`;
-                      void fetch("/api/share", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ treeId: tr.id, shared: true }),
-                      }).then((res) => {
-                        if (res.ok) {
-                          setShared(tr.id, true);
-                          void navigator.clipboard.writeText(url).then(() => {
-                            setShareToast(tr.id);
-                            setTimeout(() => setShareToast((v) => v === tr.id ? null : v), 1500);
-                          });
-                        }
-                      });
+                    const flash = (ok: boolean) => {
+                      setShareToast({ id: tr.id, ok });
+                      setTimeout(() => setShareToast((v) => (v?.id === tr.id ? null : v)), 1500);
+                    };
+                    const next = !tr.shared;
+                    if (next) {
+                      // クリックジェスチャ内で先にコピーする。fetch 完了後の writeText は
+                      // Safari 系でジェスチャ扱いされずブロックされる
+                      try {
+                        void navigator.clipboard.writeText(`${window.location.origin}/s/${tr.id}`).catch(() => {});
+                      } catch {}
                     }
+                    void fetch("/api/share", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ treeId: tr.id, shared: next }),
+                    })
+                      .then((res) => {
+                        if (res.ok) {
+                          setShared(tr.id, next);
+                          flash(true);
+                        } else {
+                          flash(false); // 401/404/500 — 無言にしない
+                        }
+                      })
+                      .catch(() => flash(false));
                   }}
                   className={`ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors ${
                     tr.shared
@@ -263,14 +267,19 @@ export default function Sidebar({
                   }`}
                   title={tr.shared ? t("sidebar.unshare") : t("sidebar.share")}
                 >
-                  {shareToast === tr.id ? (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  {shareToast?.id === tr.id ? (
+                    shareToast.ok ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    ) : (
+                      <span className="text-sm leading-none text-wine">✕</span>
+                    )
                   ) : tr.shared ? (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
                   ) : (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" /></svg>
                   )}
                 </button>
+                )}
               </div>
             </div>
           );
