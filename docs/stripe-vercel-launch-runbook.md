@@ -13,6 +13,7 @@
   - `customer.subscription.updated`
   - `customer.subscription.deleted`
 - Confirm the webhook signing secret is set as `STRIPE_WEBHOOK_SECRET`.
+- After any change to the Stripe Price catalog (new Prices, repointed `STRIPE_PRICE_STANDARD` / `STRIPE_PRICE_PRO` env vars), watch Sentry for `[webhook] unknown price id:` messages. The webhook returns 200 for those events on purpose (retries won't help — the Price ID mapping won't change on its own), so any affected subscribers must be migrated manually via the Portal or `stripe.subscriptions.update` with the new Price ID.
 
 ## Vercel
 

@@ -30,6 +30,34 @@ async function setPlan(userId: string, plan: string, stripeCustomerId?: string):
   return true;
 }
 
+// unknown price のケースでも stripe_customer_id だけは profile に書き込みたい
+// (checkout route の live subscription チェックが customer_id 経由なので、これがないと
+// 2 subscription を作られる経路が残る)。plan は変えずに customer_id だけ update する。
+async function setCustomerIdOnly(userId: string, customerId: string): Promise<boolean> {
+  const supabase = getServiceSupabase();
+  if (!supabase) {
+    console.error("[webhook] service supabase not configured");
+    Sentry.captureException(new Error("[webhook] service supabase not configured"));
+    return false;
+  }
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ stripe_customer_id: customerId })
+    .eq("id", userId)
+    .select("id");
+  if (error) {
+    console.error("[webhook] customer id update failed", error);
+    Sentry.captureException(error);
+    return false;
+  }
+  if (!data || data.length === 0) {
+    console.error(`[webhook] profile not found for user ${userId}`);
+    Sentry.captureMessage(`[webhook] profile not found for user ${userId}`, "warning");
+    return false;
+  }
+  return true;
+}
+
 async function setPlanByCustomer(customerId: string, plan: string): Promise<boolean> {
   const supabase = getServiceSupabase();
   if (!supabase) {
@@ -94,9 +122,16 @@ export async function POST(request: Request) {
         const plan = planFromSubscription(sub);
         if (!plan) {
           const priceId = sub.items.data[0]?.price?.id;
-          console.error(`[webhook] unknown price id: ${priceId}`);
-          Sentry.captureMessage(`[webhook] unknown price id: ${priceId}`);
-          ok = false;
+          const msg = `[webhook] unknown price id: ${priceId} (sub=${sub.id}, customer=${customerId ?? "?"}, user=${userId})`;
+          console.error(msg);
+          Sentry.captureMessage(msg, "warning");
+          // Price ID の catalog が Stripe 側で変わらない限り再送しても解決しない。
+          // 500 で 3 日間再送させると Sentry を spam するだけになるので 200 で受け取り、
+          // operator に Sentry 経由で通知して Portal 経由の手動対応に回す。
+          // ただし checkout route の live-subscription チェックが customer_id 経由で
+          // 効くよう、customer_id だけは profile に残す (plan は変えない — 別 event
+          // での handling を待つ)。
+          if (customerId) ok = await setCustomerIdOnly(userId, customerId);
           break;
         }
         ok = await setPlan(userId, plan, customerId);
@@ -110,9 +145,13 @@ export async function POST(request: Request) {
         const plan = planFromSubscription(sub);
         if (!plan) {
           const priceId = sub.items.data[0]?.price?.id;
-          console.error(`[webhook] unknown price id: ${priceId}`);
-          Sentry.captureMessage(`[webhook] unknown price id: ${priceId}`);
-          ok = false;
+          const msg = `[webhook] unknown price id: ${priceId} (sub=${sub.id}, customer=${customerId})`;
+          console.error(msg);
+          Sentry.captureMessage(msg, "warning");
+          // 同上。旧 Price ID の subscription が catalog 変更を跨いだケース等。
+          // 500 リトライは無効なので 200 で受けて Sentry 経由で運用対応する。
+          // customer_id は既に profile 側で保存済み (checkout completed で入る)。
+          ok = true;
           break;
         }
         ok = await setPlanByCustomer(customerId, plan);
