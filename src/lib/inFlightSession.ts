@@ -84,7 +84,7 @@ export async function expireInFlightSessionIfDifferentPlan(
     throw new SessionAlreadyCompletedError();
   }
   // "ok" or "already_expired" 両方とも payable でなくなった状態
-  await clearInFlightSession(supabase, userId, sessionId);
+  await safeClearInFlightSession(supabase, userId, sessionId);
   return "cleared";
 }
 

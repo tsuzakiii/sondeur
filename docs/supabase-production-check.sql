@@ -105,14 +105,15 @@ select 'release_checkout_lock grants: service_role only' as check_name,
            and grantee = 'service_role' and privilege_type = 'EXECUTE'
        ) as ok;
 
-select 'checkout_locks table grants: service_role has access AND client roles do not' as check_name,
+select 'checkout_locks table grants: service_role has all 4 privileges AND client roles do not' as check_name,
        not exists (
          select 1 from information_schema.role_table_grants
          where table_schema = 'public' and table_name = 'checkout_locks'
            and grantee in ('anon', 'authenticated', 'PUBLIC')
        )
-       and exists (
-         select 1 from information_schema.role_table_grants
+       and (
+         select count(distinct privilege_type) = 4
+         from information_schema.role_table_grants
          where table_schema = 'public' and table_name = 'checkout_locks'
            and grantee = 'service_role'
            and privilege_type in ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
