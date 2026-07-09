@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { getSupabase } from "./supabase/client";
 import { startSync, stopSync } from "./sync";
+import { clearAllCachedProfiles } from "@/components/authFooterCache";
 
 /**
  * 認証状態のモジュールレベルストア。
@@ -49,6 +50,10 @@ export function initAuth() {
       }
     } else {
       if (authInfo.kind !== "signedOut") {
+        // 明示的な signedIn → signedOut 遷移。この認証層で cache 名前空間を掃除しておく
+        // ことで、AuthFooter が unmount 中 (mobile sidebar 折り畳み等) に他 tab で発生した
+        // signout も正しく捕まえる。UI コンポーネント側の観測に依存しない。
+        clearAllCachedProfiles();
         authInfo = SIGNED_OUT;
         emit();
         stopSync({ clearLocal: true });
