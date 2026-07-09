@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import type { AuthInfo } from "@/lib/authState";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { signInWithEmail, signOut, useAuthInfo } from "@/lib/authState";
 import { PLAN_NODE_LIMITS } from "@/lib/planLimits";
@@ -70,14 +71,24 @@ export default function AuthFooter() {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [showPlans, setShowPlans] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // 直前の auth.kind を保持する。初回 mount 時の signedOut (Supabase resolve 前) を、
+  // 実際のログアウト遷移 (以前 signedIn だった) と区別するために使う。前者では cache を
+  // 消さず optimistic paint の余地を残す。
+  const prevAuthKindRef = useRef<AuthInfo["kind"] | null>(null);
 
   useEffect(() => {
+    const prevKind = prevAuthKindRef.current;
+    prevAuthKindRef.current = auth.kind;
+
     if (auth.kind !== "signedIn") {
-      // 前ユーザーの localStorage cache 名前空間をここで一括で消す。
+      // signedIn → signedOut の明示的ログアウト時のみ localStorage 名前空間を掃除する。
+      // 初回 mount (prevKind === null) の signedOut は auth 未 resolve の可能性が高く、
+      // ここで clear すると同一ユーザーの復帰時に optimistic paint が失われる。
       // in-memory の profile state は setProfile(null) で reset せず、render 時の
       // resolveDisplayProfile が auth.userId mismatch を検出して null 化するのに任せる。
-      // effect 内で無条件 setState を呼ぶと react-hooks/set-state-in-effect に触れるため。
-      clearAllCachedProfiles();
+      if (prevKind === "signedIn") {
+        clearAllCachedProfiles();
+      }
       return;
     }
     const supabase = getSupabase();
