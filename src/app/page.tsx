@@ -12,7 +12,13 @@ import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { GUEST_NODE_LIMIT } from "@/lib/planLimits";
 import { useI18n } from "@/lib/i18n";
 import { useIsMobile } from "@/lib/useIsMobile";
-import { readBillingReturnStatus, rememberBillingReturnStatus, type BillingReturnStatus } from "@/lib/billingReturn";
+import { useClientMounted } from "@/lib/useClientMounted";
+import {
+  clearBillingReturnStatus,
+  readBillingReturnStatus,
+  rememberBillingReturnStatus,
+  type BillingReturnStatus,
+} from "@/lib/billingReturn";
 
 const GraphView = dynamic(() => import("@/components/GraphView"), { ssr: false });
 
@@ -29,18 +35,22 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [suggestions, setSuggestions] = useState<string[] | null>(null);
   const [blankMode, setBlankMode] = useState(false);
-  const [billingNotice, setBillingNotice] = useState<BillingReturnStatus | null>(null);
-  const [mounted, setMounted] = useState(false);
+  // render phase では sessionStorage への副作用は起こさない。URL / sessionStorage の
+  // 読み取りだけを initializer で行い、書き込みは effect (commit 後) で行う。
+  const [billingNotice, setBillingNotice] = useState<BillingReturnStatus | null>(
+    () => readBillingReturnStatus()
+  );
+  const mounted = useClientMounted();
   useEffect(() => {
-    setMounted(true);
     initAuth();
   }, []);
 
   useEffect(() => {
-    const status = readBillingReturnStatus();
-    if (!status) return;
-    rememberBillingReturnStatus(status);
-    setBillingNotice(status);
+    if (!billingNotice) return;
+
+    // URL クリーンアップより先に sessionStorage へ retain する — URL パラメータが
+    // 消えた後の再マウントでも同じ notice が復元できるようにするため。
+    rememberBillingReturnStatus(billingNotice);
 
     const url = new URL(window.location.href);
     if (url.searchParams.has("billing")) {
@@ -48,11 +58,25 @@ export default function Home() {
       window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
     }
 
-    const timer = window.setTimeout(() => setBillingNotice(null), status === "success" ? 9000 : 6000);
+    const timer = window.setTimeout(() => {
+      setBillingNotice(null);
+      // sessionStorage 側もこの時点で捨てる。以前は AuthFooter の auth 遷移でしか
+      // clear されず、モバイル (sidebar 折り畳みで AuthFooter 未描画) では
+      // リロードのたびに古い notice が復活していた。
+      clearBillingReturnStatus();
+    }, billingNotice === "success" ? 9000 : 6000);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [billingNotice]);
 
   useEffect(() => {
+    let cancelled = false;
+    let timer: number | undefined;
+    const setSuggestionsSoon = (next: string[] | null) => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (!cancelled) setSuggestions(next);
+      }, 0);
+    };
     const cacheKey = `sondeur.suggestions.${locale}`;
     try {
       const raw = localStorage.getItem(cacheKey);
@@ -60,21 +84,31 @@ export default function Home() {
         const cached = JSON.parse(raw) as { date: string; suggestions: string[] };
         const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date());
         if (cached.date === today && cached.suggestions?.length > 0) {
-          setSuggestions(cached.suggestions);
-          return;
+          setSuggestionsSoon(cached.suggestions);
+          return () => {
+            cancelled = true;
+            window.clearTimeout(timer);
+          };
         }
       }
     } catch {}
-    setSuggestions(null);
-    fetch(`/api/suggestions?lang=${locale}`)
+    setSuggestionsSoon(null);
+    const controller = new AbortController();
+    fetch(`/api/suggestions?lang=${locale}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
+        if (cancelled) return;
         if (Array.isArray(d?.suggestions) && d.suggestions.length > 0) {
           setSuggestions(d.suggestions);
           try { localStorage.setItem(cacheKey, JSON.stringify({ date: d.date, suggestions: d.suggestions })); } catch {}
         }
       })
       .catch(() => {});
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearTimeout(timer);
+    };
   }, [locale]);
 
   const treeList = useMemo(
@@ -139,7 +173,12 @@ export default function Home() {
               {t(billingNotice === "success" ? "billing.successBody" : "billing.cancelBody")}
             </div>
             <button
-              onClick={() => setBillingNotice(null)}
+              onClick={() => {
+                setBillingNotice(null);
+                // 明示的にユーザーが閉じたので sessionStorage も消す。
+                // これをしないとリロード後に同じ notice が復活する。
+                clearBillingReturnStatus();
+              }}
               className="shrink-0 rounded px-1.5 text-slate-400 hover:text-slate-600"
               aria-label={t("home.close")}
             >

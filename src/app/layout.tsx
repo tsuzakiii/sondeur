@@ -26,21 +26,21 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sondeur.vercel.app
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Sondeur — Sound the depths of understanding",
-    template: "%s — Sondeur",
+    default: "Sondeur | Understand explanations by drilling into any phrase",
+    template: "%s | Sondeur",
   },
-  description: "Select any phrase and drill deeper with What / Why",
+  description: "Sondeur lets learners select a confusing phrase inside an explanation and ask What or Why to build a trail of deeper answers.",
   openGraph: {
     siteName: "Sondeur",
     type: "website",
     url: "/",
-    title: "Sondeur — Sound the depths of understanding",
-    description: "Select any phrase and drill deeper with What / Why",
+    title: "Sondeur | Understand explanations by drilling into any phrase",
+    description: "Select a confusing phrase inside an explanation and ask What or Why to build a trail of deeper answers.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Sondeur — Sound the depths of understanding",
-    description: "Select any phrase and drill deeper with What / Why",
+    title: "Sondeur | Understand explanations by drilling into any phrase",
+    description: "Select a confusing phrase inside an explanation and ask What or Why to build a trail of deeper answers.",
   },
 };
 

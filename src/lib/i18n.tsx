@@ -14,7 +14,7 @@ export const LOCALES: { code: Locale; label: string; flag: string }[] = [
 type Dict = Record<string, string>;
 
 const en: Dict = {
-  "home.tagline": "Sound the depths of understanding.",
+  "home.tagline": "Select a phrase, then ask What or Why.",
   "home.placeholder": "What do you want to understand?",
   "home.placeholderActive": "Ask a new question…",
   "home.submit": "Explore",
@@ -232,11 +232,14 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   // Read stored locale on mount (avoids SSR hydration mismatch)
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as Locale | null;
-    if (stored === "en" || stored === "ja") {
-      setLocaleRaw(stored);
-      document.documentElement.lang = stored;
-    }
+    const timer = window.setTimeout(() => {
+      const stored = localStorage.getItem(STORAGE_KEY) as Locale | null;
+      if (stored === "en" || stored === "ja") {
+        setLocaleRaw(stored);
+        document.documentElement.lang = stored;
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {

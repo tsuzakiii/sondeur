@@ -7,14 +7,14 @@ import { useI18n, useLocale } from "@/lib/i18n";
 
 const CONTENT = {
   ja: {
-    tagline: "わからないことを、わかるまで測深する。",
+    tagline: "わからない語句を選んで、理由と仕組みまで掘り下げる。",
     intro:
-      "Sondeur は、AI の説明の「わからない箇所」を選んで掘り下げる学習サービスです。文中の語句をなぞって What is it（それは何か）/ Why is it（なぜそうなのか）を選ぶと、そこから新しい説明が生え、探索の航跡が木構造として残ります。",
+      "Sondeur は、AI の説明の中で理解できなかった語句を選び、What is it（それは何か）/ Why is it（なぜそうなのか）で掘り下げる学習サービスです。説明は選んだ箇所からつながって増え、探索履歴はツリーとして残ります。",
     stepsHeading: "使い方",
     steps: [
       { title: "問いを立てる", body: "知りたいことを入力すると、AI が説明を生成します。" },
       { title: "わからない箇所を選ぶ", body: "本文の語句をドラッグで選択し、What / Why で掘り下げます。" },
-      { title: "航跡が残る", body: "掘った履歴は木構造として蓄積され、いつでも辿り直せます。" },
+      { title: "履歴を残す", body: "掘り下げた内容はツリーとして蓄積され、あとから辿り直せます。" },
     ],
     pricingHeading: "料金",
     plans: [
@@ -26,9 +26,9 @@ const CONTENT = {
     cta: "使ってみる",
   },
   en: {
-    tagline: "Sound the depths of understanding.",
+    tagline: "Select a phrase, then ask What or Why.",
     intro:
-      "Sondeur is a learning tool for drilling into the parts of an AI explanation you don't understand. Select any phrase and choose What is it / Why is it — a new explanation grows from it, and your exploration accumulates as a tree.",
+      "Sondeur is a learning tool for people who get stuck inside an explanation. Select the exact phrase that stopped you, ask What is it or Why is it, and keep the resulting answers as a tree you can revisit.",
     stepsHeading: "How it works",
     steps: [
       { title: "Ask", body: "Type what you want to understand and the AI generates an explanation." },

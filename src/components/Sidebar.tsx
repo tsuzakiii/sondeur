@@ -68,13 +68,22 @@ export default function Sidebar({
   const [deleteRect, setDeleteRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [deleteExpanded, setDeleteExpanded] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  // Sidebar は unmount しない (この component 内の !open 分岐が早期 return するだけで
+  // 常に mount されている) ので、Date.now() を 1 分刻みで更新する。lint の
+  // `Cannot call impure function during render` を避けつつ「N 分前 → M 分前」が経時で
+  // 正しく進むようにする。
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
   const hits = useMemo(
     () => (query.trim().length >= 2 ? searchTrees(trees, query.trim()) : null),
     [trees, query]
   );
 
   const relativeTime = (ts: number): string => {
-    const diff = Date.now() - ts;
+    const diff = now - ts;
     const min = Math.floor(diff / 60000);
     if (min < 1) return t("sidebar.justNow");
     if (min < 60) return t("sidebar.minutesAgo", { n: min });

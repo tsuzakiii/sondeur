@@ -81,6 +81,8 @@ export default function ReadingPanel({
   const [pillQuestion, setPillQuestion] = useState("");
   const [nodeQuestion, setNodeQuestion] = useState("");
   const [copied, setCopied] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(300);
+  const treeRef = useRef(tree);
 
   const segments: Segment[] = useMemo(() => buildSegments(tree, node), [tree, node]);
 
@@ -123,11 +125,31 @@ export default function ReadingPanel({
   }, []);
 
   useEffect(() => {
-    setPill(null);
-    setPillQuestion("");
-    setNodeQuestion("");
-    setCopied(false);
-    retryIfQuotaError(tree, node.id);
+    treeRef.current = tree;
+  }, [tree]);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const ro = new ResizeObserver(() => setPanelWidth(panel.clientWidth || 300));
+    ro.observe(panel);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      setPill(null);
+      setPillQuestion("");
+      setNodeQuestion("");
+      setCopied(false);
+      retryIfQuotaError(treeRef.current, node.id);
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [node.id]);
 
   useEffect(() => {
@@ -316,7 +338,7 @@ export default function ReadingPanel({
         <div
           className="neu-raised pill-rise absolute z-20 overflow-hidden rounded-full"
           style={{
-            left: Math.max(140, Math.min(pill.x, (panelRef.current?.clientWidth ?? 300) - 140)),
+            left: Math.max(140, Math.min(pill.x, panelWidth - 140)),
             top: Math.max(40, pill.y - 8),
           }}
           onMouseDown={(e) => {
