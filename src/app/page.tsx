@@ -77,7 +77,9 @@ export default function Home() {
         if (!cancelled) setSuggestions(next);
       }, 0);
     };
-    const cacheKey = `sondeur.suggestions.${locale}`;
+    // v2: フォールバック汚染事故 (2026-07-10、失効キー期間にfallbackが日付付きで
+    // キャッシュされ丸一日固定表示) の切り捨てのためキー版数を上げた
+    const cacheKey = `sondeur.suggestions.v2.${locale}`;
     try {
       const raw = localStorage.getItem(cacheKey);
       if (raw) {
@@ -100,7 +102,11 @@ export default function Home() {
         if (cancelled) return;
         if (Array.isArray(d?.suggestions) && d.suggestions.length > 0) {
           setSuggestions(d.suggestions);
-          try { localStorage.setItem(cacheKey, JSON.stringify({ date: d.date, suggestions: d.suggestions })); } catch {}
+          // fallback (生成失敗時の固定リスト) は表示はするがキャッシュしない —
+          // 日付付きで保存すると翌日まで新鮮なサジェストに戻れなくなるため
+          if (d.source !== "fallback") {
+            try { localStorage.setItem(cacheKey, JSON.stringify({ date: d.date, suggestions: d.suggestions })); } catch {}
+          }
         }
       })
       .catch(() => {});
