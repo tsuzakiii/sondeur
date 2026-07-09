@@ -7,6 +7,8 @@ import { signInWithEmail, signOut, useAuthInfo } from "@/lib/authState";
 import { PLAN_NODE_LIMITS } from "@/lib/planLimits";
 import { useI18n, useLocale, LOCALES } from "@/lib/i18n";
 import { clearBillingReturnStatus, readBillingReturnStatus } from "@/lib/billingReturn";
+import { createCancellableSleep } from "@/lib/cancellableSleep";
+import { shouldShowSlowNote } from "@/lib/pollingSlowNote";
 import {
   loadCachedProfile,
   resolveDisplayProfile,
@@ -68,6 +70,7 @@ export default function AuthFooter() {
   const [popupOpen, setPopupOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [showPlans, setShowPlans] = useState(false);
+  const [slowNote, setSlowNote] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -98,7 +101,11 @@ export default function AuthFooter() {
       : undefined;
 
     const billingReturn = readBillingReturnStatus();
-    const maxAttempts = billingReturn === "success" ? 10 : 1;
+    // 30 attempts × 1500ms ≈ 45s。以前は 10 attempts (15s) だったが webhook 遅延で
+    // 反映が間に合わないケースがあった (#7 / M4)。10 attempt を過ぎても Free のままなら
+    // 補助テキスト (slowNote) を表示してユーザーに再読み込みを促す。
+    const maxAttempts = billingReturn === "success" ? 30 : 1;
+    let currentSleep: { cancel: () => void } | null = null;
 
     const loadProfile = async (): Promise<CachedProfile | null> => {
       const { data } = await supabase
@@ -126,11 +133,18 @@ export default function AuthFooter() {
         const p = await loadProfile();
         if (cancelled) return;
         if (billingReturn !== "success" || (p && p.plan !== "free")) {
+          setSlowNote(false);
           clearBillingReturnStatus();
           return;
         }
+        setSlowNote(shouldShowSlowNote(attempt, p?.plan ?? "free"));
         if (attempt < maxAttempts - 1) {
-          await new Promise((resolve) => window.setTimeout(resolve, 1500));
+          // effect cleanup で cancel できる sleep。fake sleep で await の残置なく
+          // ループを閉じる (#8 / L1)。
+          const sleep = createCancellableSleep(1500);
+          currentSleep = sleep;
+          await sleep.promise;
+          currentSleep = null;
         }
       }
       clearBillingReturnStatus();
@@ -139,6 +153,7 @@ export default function AuthFooter() {
     return () => {
       cancelled = true;
       if (cacheTimer !== undefined) window.clearTimeout(cacheTimer);
+      currentSleep?.cancel();
     };
   }, [auth]);
 
@@ -183,6 +198,11 @@ export default function AuthFooter() {
               <span className="font-semibold text-navy">{PLAN_LABEL[plan] ?? plan}</span>
               {usageText && <span className="text-slate-400">{usageText}</span>}
             </div>
+            {slowNote && (
+              <div className="mt-0.5 text-[10px] text-slate-400" role="status">
+                {t("billing.slowNote")}
+              </div>
+            )}
           </div>
           <span className="mr-1.5 -mt-px shrink-0 text-[22px] leading-none text-slate-400">⚙</span>
         </button>

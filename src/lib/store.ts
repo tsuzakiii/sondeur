@@ -337,10 +337,17 @@ export function childrenOf(tree: Tree, nodeId: string): SondeurNode[] {
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
+// sync merge の regression 等で parentId が cycle した場合の保険。visited Set で
+// 既訪ノードに再訪したら停止する。ハード上限 1000 は visited が壊れた場合の最後の
+// safety net (通常のツリーは高々 depth 数十)。
+const WALK_HARD_CAP = 1000;
+
 export function depthOf(tree: Tree, nodeId: string): number {
   let d = 0;
   let cur = tree.nodes[nodeId];
-  while (cur?.parentId) {
+  const visited = new Set<string>();
+  while (cur?.parentId && !visited.has(cur.id) && d < WALK_HARD_CAP) {
+    visited.add(cur.id);
     d++;
     cur = tree.nodes[cur.parentId];
   }
@@ -351,7 +358,9 @@ export function depthOf(tree: Tree, nodeId: string): number {
 export function pathToNode(tree: Tree, nodeId: string): SondeurNode[] {
   const path: SondeurNode[] = [];
   let cur: SondeurNode | undefined = tree.nodes[nodeId];
-  while (cur) {
+  const visited = new Set<string>();
+  while (cur && !visited.has(cur.id) && path.length < WALK_HARD_CAP) {
+    visited.add(cur.id);
     path.unshift(cur);
     cur = cur.parentId ? tree.nodes[cur.parentId] : undefined;
   }

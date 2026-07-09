@@ -64,6 +64,7 @@ const en: Dict = {
   "auth.notConfigured": "Supabase not configured",
   "billing.successTitle": "Checkout complete.",
   "billing.successBody": "Your plan is updating. This can take a few seconds.",
+  "billing.slowNote": "Taking longer than usual. Try refreshing the page.",
   "billing.cancelTitle": "Checkout canceled.",
   "billing.cancelBody": "No payment was made and your plan was not changed.",
 
@@ -164,6 +165,7 @@ const ja: Dict = {
   "auth.notConfigured": "Supabase が設定されていません",
   "billing.successTitle": "決済が完了しました。",
   "billing.successBody": "プランを反映しています。数秒かかる場合があります。",
+  "billing.slowNote": "反映に時間がかかっています。ページを再読み込みしてください。",
   "billing.cancelTitle": "決済をキャンセルしました。",
   "billing.cancelBody": "支払いは行われておらず、プランは変更されていません。",
 
