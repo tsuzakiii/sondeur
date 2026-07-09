@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 import * as Sentry from "@sentry/nextjs";
 import { getServiceSupabase, getStripe, planFromPriceId } from "@/lib/stripe";
+import { clearInFlightSession } from "@/lib/inFlightSession";
 
 export const runtime = "nodejs";
 
@@ -115,6 +116,7 @@ export async function POST(request: Request) {
       const session = event.data.object;
       const userId = session.client_reference_id;
       const customerId = typeof session.customer === "string" ? session.customer : undefined;
+      let planUpdateHandled = false;
       if (userId && session.subscription) {
         const sub = await stripe.subscriptions.retrieve(
           typeof session.subscription === "string" ? session.subscription : session.subscription.id
@@ -125,16 +127,32 @@ export async function POST(request: Request) {
           const msg = `[webhook] unknown price id: ${priceId} (sub=${sub.id}, customer=${customerId ?? "?"}, user=${userId})`;
           console.error(msg);
           Sentry.captureMessage(msg, "warning");
-          // Price ID の catalog が Stripe 側で変わらない限り再送しても解決しない。
-          // 500 で 3 日間再送させると Sentry を spam するだけになるので 200 で受け取り、
-          // operator に Sentry 経由で通知して Portal 経由の手動対応に回す。
-          // ただし checkout route の live-subscription チェックが customer_id 経由で
-          // 効くよう、customer_id だけは profile に残す (plan は変えない — 別 event
-          // での handling を待つ)。
           if (customerId) ok = await setCustomerIdOnly(userId, customerId);
-          break;
+          // branch-r1-F6: unknown price でも event 自体は "session が完了した" 事実。
+          // 追跡している in-flight pointer は clear する。
+          planUpdateHandled = ok;
+        } else {
+          ok = await setPlan(userId, plan, customerId);
+          planUpdateHandled = ok;
         }
-        ok = await setPlan(userId, plan, customerId);
+      }
+      // branch-r1-F3: setPlan / setCustomerIdOnly が false (error) の時は clear しない。
+      // Stripe の retry で next attempt の際 pointer が生きている必要があるため。
+      if (userId && planUpdateHandled) {
+        const service = getServiceSupabase();
+        if (service) await clearInFlightSession(service, userId, session.id);
+      }
+      break;
+    }
+    case "checkout.session.expired": {
+      // Stripe が自然 expire (24h) or 明示 expire を通知してくる。in-flight pointer を
+      // 掃除する。userId が event に無い (稀に client_reference_id 未設定の Session)
+      // 場合はスキップ (safe)。
+      const session = event.data.object;
+      const userId = session.client_reference_id;
+      if (userId) {
+        const service = getServiceSupabase();
+        if (service) await clearInFlightSession(service, userId, session.id);
       }
       break;
     }
