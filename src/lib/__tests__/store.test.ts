@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { Tree } from "@/lib/types";
 
 const STORAGE_KEY = "sondeur.trees.v1";
 const OWNER_KEY = "sondeur.trees.owner.v1";
 
-const sampleTrees = {
+const sampleTrees: Record<string, Tree> = {
   t1: {
     id: "t1",
     title: "A's tree",
@@ -192,4 +193,16 @@ describe("depthOf / pathToNode cycle safety (AC-L3-1)", () => {
     const tree = makeTree(nodesArr);
     expect(depthOf(tree, "n50")).toBe(50);
   });
+});
+
+it("keeps document snapshots within the tree owner boundary", async () => {
+  const mod = await freshStore();
+  mod.hydrate(structuredClone(sampleTrees), "user-a");
+  const doc = { markdown: "# Private document", sourceKey: "test", createdAt: 1, locale: "en" };
+  expect(mod.saveTrailDocument("t1", doc, "user-a")).toBe(true);
+  expect(mod.getState().trees.t1.document).toEqual(doc);
+  expect(mod.getState().trees.t1.documentGenerations).toBe(1);
+  expect(mod.saveTrailDocument("t1", doc, "user-b")).toBe(false);
+  mod.clearTrees("guest");
+  expect(mod.saveTrailDocument("t1", doc, "user-a")).toBe(false);
 });

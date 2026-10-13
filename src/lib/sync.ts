@@ -143,7 +143,7 @@ function mergeTree(local: Tree, remote: Tree): { merged: Tree; needsRepair: bool
     }
   }
   const base = local.updatedAt >= remote.updatedAt ? local : remote;
-  return { merged: { ...base, nodes }, needsRepair };
+  return { merged: { ...base, nodes, document: local.document, documentGenerations: local.documentGenerations }, needsRepair };
 }
 
 /** ログイン時: リモートを読み込み、ローカルとマージして状態を差し替える。欠けている側は修復 push */

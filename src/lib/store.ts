@@ -366,3 +366,13 @@ export function pathToNode(tree: Tree, nodeId: string): SondeurNode[] {
   }
   return path;
 }
+
+/** Keep the result on this device, within the existing owner-isolated tree store. */
+export function saveTrailDocument(treeId: string, document: import("./trailDocument").TrailDocument, owner: string): boolean {
+  load();
+  const tree = state.trees[treeId];
+  if (!tree || storageOwner !== owner) return false;
+  state = { trees: { ...state.trees, [treeId]: { ...tree, document, documentGenerations: (tree.documentGenerations ?? 0) + 1 } } };
+  emit();
+  return true;
+}

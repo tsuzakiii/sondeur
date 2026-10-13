@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { searchParallel } from "@/lib/parallelSearch";
 import { POST } from "./route";
 import { getRequestUser } from "@/lib/supabase/server";
 import { checkGuestRateLimit } from "@/lib/guestRateLimit";
 
 const { createResponse } = vi.hoisted(() => ({ createResponse: vi.fn() }));
+vi.mock("@/lib/parallelSearch", () => ({ searchParallel: vi.fn() }));
 vi.mock("openai", () => ({
   default: class { responses = { create: createResponse }; },
 }));
@@ -16,6 +18,7 @@ vi.mock("@/lib/planLimits", () => ({ consumeNodeQuota: vi.fn() }));
 beforeEach(() => {
   vi.stubEnv("OPENAI_API_KEY", "test-key");
   vi.stubEnv("SONDEUR_MODEL", undefined);
+  vi.stubEnv("SONDEUR_SEARCH_PROVIDER", undefined);
   vi.mocked(getRequestUser).mockResolvedValue(null);
   vi.mocked(checkGuestRateLimit).mockResolvedValue(true);
   createResponse.mockImplementation(async function* () {
@@ -44,7 +47,7 @@ describe("Luna route integration", () => {
       model: "gpt-6-luna", reasoning: { effort: "none" }, stream: true,
       tools: [{ type: "web_search" }], max_output_tokens: 4000,
       input: expect.stringContaining("日本語で答える"),
-    }));
+    }), { signal: expect.any(AbortSignal) });
   });
 
   it("preserves English prompts and the rollback model override", async () => {
@@ -72,4 +75,14 @@ describe("Luna route integration", () => {
     const res = await POST(request());
     await expect(res.text()).rejects.toThrow("provider failed");
   });
+});
+
+it("uses Parallel sources without OpenAI search tools when selected", async () => {
+  vi.stubEnv("SONDEUR_SEARCH_PROVIDER", "parallel");
+  vi.mocked(searchParallel).mockResolvedValue([{ title: "source", url: "https://example.org", excerpts: ["verified fact"] }]);
+  const response = await POST(request());
+  await response.text();
+  expect(searchParallel).toHaveBeenCalledTimes(1);
+  expect(createResponse.mock.calls[0][0]).not.toHaveProperty("tools");
+  expect(createResponse.mock.calls[0][0].input).toContain("verified fact");
 });

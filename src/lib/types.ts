@@ -30,6 +30,10 @@ export interface Tree {
   createdAt: number;
   updatedAt: number;
   shared?: boolean;
+  /** Local generation count for the guest allowance. */
+  documentGenerations?: number;
+  /** Local-only document snapshot; never published by tree sharing. */
+  document?: import("./trailDocument").TrailDocument;
 }
 
 export interface ExpandRequest {

@@ -78,7 +78,7 @@ export default function AuthFooter() {
   // ゲストのお試し枠表示用。上限判定 (page.tsx の guardGuestLimit) と同じ数え方に揃える
   const { trees } = useTreeStore();
   const guestUsed = useMemo(
-    () => Object.values(trees).reduce((acc, tr) => acc + Object.keys(tr.nodes).length, 0),
+    () => Object.values(trees).reduce((acc, tr) => acc + Object.keys(tr.nodes).length + (tr.documentGenerations ?? 0), 0),
     [trees]
   );
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
+import DocumentPanel from "@/components/DocumentPanel";
 import ReadingPanel from "@/components/ReadingPanel";
 import { deleteTree, toggleCollapsed, useTreeStore } from "@/lib/store";
 import { expandAsk, expandSpan, startTree } from "@/lib/expand";
@@ -32,6 +33,7 @@ export default function Home() {
   );
   const [selectedTreeId, setSelectedTreeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [documentTreeId, setDocumentTreeId] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
   const [suggestions, setSuggestions] = useState<string[] | null>(null);
   const [blankMode, setBlankMode] = useState(false);
@@ -142,7 +144,7 @@ export default function Home() {
 
   const auth = useAuthInfo();
   const totalNodes = useMemo(
-    () => Object.values(trees).reduce((acc, t) => acc + Object.keys(t.nodes).length, 0),
+    () => Object.values(trees).reduce((acc, t) => acc + Object.keys(t.nodes).length + (t.documentGenerations ?? 0), 0),
     [trees]
   );
   const [guestBlocked, setGuestBlocked] = useState(false);
@@ -286,10 +288,18 @@ export default function Home() {
         }}
       />
 
+      {documentTreeId && trees[documentTreeId] && (
+        <DocumentPanel key={documentTreeId} tree={trees[documentTreeId]} onClose={() => setDocumentTreeId(null)} />
+      )}
       <div className="flex h-full min-w-0 flex-1">
         <div className="relative h-full min-w-0 flex-1">
           {tree ? (
             <>
+              <button
+                className={`neu-raised-sm absolute top-4 z-20 rounded-xl px-4 py-2 text-sm text-navy max-md:right-3 max-md:top-3 ${selectedNode ? "right-[calc(clamp(300px,30vw,540px)+1rem)]" : "right-4"}`}
+                onClick={() => setDocumentTreeId(tree.id)}
+                disabled={!Object.values(tree.nodes).some(n => n.status === "done")}
+              >{tree.document ? t("document.open") : t("document.action")}</button>
               <GraphView
                 tree={tree}
                 selectedNodeId={selectedNodeId}
