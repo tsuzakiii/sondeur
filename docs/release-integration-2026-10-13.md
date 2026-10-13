@@ -28,6 +28,7 @@ Additional integration fixes: auth redirects use private/no-store caching; webho
 - Public production bundles identify Supabase `jlqzeuahcrhogqufbhvw`, confirming the database target.
 - That project was resumed from INACTIVE to ACTIVE_HEALTHY. Existing profiles/trees/nodes/guest_usage have RLS; quota functions exist, and guest quota RPCs exclude anon/authenticated/PUBLIC.
 - Migration 0007 was applied as `checkout_locks_and_in_flight`. Verified lock table, RLS/deny policy, both RPCs, service-only table access, all four service table privileges, and nullable in-flight session column. Both RPCs grant EXECUTE only to postgres/service_role.
+- A database transaction verified acquisition, contention rejection, wrong-token rejection, release, and reacquisition. The transaction was rolled back without persistent test rows.
 - Previous migrations were applied without Management API migration-history entries. Inspect schema and grants before attempting to replay old migrations; an empty history does not mean an empty database.
 
 ## Remaining gates before production promotion
@@ -38,6 +39,10 @@ Additional integration fixes: auth redirects use private/no-store caching; webho
 4. Merge the reviewed integration PR with a merge commit, verify the resulting SHA, and stage that exact production build without assigning domains before promotion. Retain the old deployment ID above for rollback. A normal `master` deployment before integration would lose production-only features.
 
 The current tools can read the project's default scope but explicit team-scoped calls return 403. Do not change accounts merely to work around this. For CLI deployment, verify login/team/project first and use `vercel --prod --skip-domain`; this document does not assert CLI authentication is already configured.
+
+### Preview attempt and cleanup status
+
+The Git-source previews `dpl_FumkQY6PSSbY8wQ1HPacend4frMc` and `dpl_B8K2e5cPCFZDLScnzxPW91mJ1hkJ` both ended in `ERROR` with `git_info_fail` before building. No live Luna inference was performed. CLI 63.1.2 reports logged out; its device login is awaiting the owner. The temporary OpenAI Preview scope was restored to Production-only while waiting. Delete both failed preview records after CLI access is available; the connector does not expose deployment deletion. Do not promote either failed deployment.
 
 ## Existing advisor findings
 
