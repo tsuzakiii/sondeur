@@ -70,7 +70,7 @@ async function headlinesToQuestions(
 ): Promise<string[]> {
   const { default: OpenAI } = await import("openai");
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const model = process.env.SONDEUR_MODEL ?? "gpt-5.4-mini";
+  const model = process.env.SONDEUR_MODEL ?? "gpt-6-luna";
   const headlines = feeds
     .map((f) => `[${f.label}]\n${f.titles.map((t) => `- ${t}`).join("\n")}`)
     .join("\n\n");

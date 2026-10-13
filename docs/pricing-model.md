@@ -1,6 +1,61 @@
 # Sondeur pricing model
 
-Updated: 2026-07-08
+Updated: 2026-10-13
+
+## GPT-6 Luna migration
+
+The code now defaults to `gpt-6-luna` for explanations and RSS suggestions.
+Explanation requests explicitly use `reasoning.effort: "none"`, preserving the
+previous `gpt-5.4-mini` default. Suggestions retain `low`. Environment overrides
+still take precedence. Historical prompt experiments remain pinned to their
+original models.
+
+Current Standard-processing prices per 1M tokens, checked 2026-10-13:
+
+| Model | Input | Cached input | Cache write | Output |
+| --- | ---: | ---: | ---: | ---: |
+| GPT-6 Luna (up to 272K input tokens) | $0.10 | $0.01 | $0.125 | $0.50 |
+| GPT-5.4 mini | $0.75 | $0.075 | n/a | $4.50 |
+
+Web search still costs $0.01/call plus model-priced search content tokens.
+The measurement script now separates ordinary input, cache reads and cache writes
+to avoid undercounting Luna's cache-write billing. It assumes Standard processing
+and short context, not Batch/Flex discounts, regional premiums or account discounts.
+
+Repricing the two July token-count samples below with current rates gives:
+
+| Historical workload | GPT-5.4 mini now | GPT-6 Luna estimate |
+| --- | ---: | ---: |
+| Concept, no search | $0.00507 | $0.00065–$0.00078 |
+| News, two searches | $0.02548 | $0.02070–$0.02082 |
+
+The Luna range assumes the same cached-input count and output count, with zero
+through all remaining input tokens written to cache. These are **not Luna
+measurements**: tokenization, reasoning, cache behavior and search frequency may
+change. The old July model rates were half today's Standard rates; do not use the
+historical margin tables as current forecasts. Customer prices and quotas remain
+unchanged until representative quality/cost measurements are available.
+
+Sources:
+- https://developers.openai.com/api/docs/models/gpt-6-luna
+- https://developers.openai.com/api/docs/models/gpt-5.4-mini
+- https://developers.openai.com/api/docs/pricing
+- https://developers.openai.com/api/docs/guides/prompt-caching
+
+Production rollout checks:
+1. Identify the currently deployed source and commit in Vercel; reconcile any
+   changes that exist only in a manual deployment before promoting this branch.
+2. Update/remove an existing `SONDEUR_MODEL` override in the production environment
+   and redeploy. Confirm that both API routes use the intended model.
+3. Run `scripts/measure_production_cost.mjs` with a development API key, then compare
+   Japanese/English root, what, why and ask answers, factual support and latency.
+4. Verify the streaming response and RSS suggestion output in a preview deployment.
+5. Confirm the production OpenAI project has access to `gpt-6-luna` before rollout.
+
+## Historical pricing decision (2026-07-08)
+
+The following decision, measurements and margins are retained for provenance;
+they describe the old model and assumptions, not the current Luna forecast.
 
 ## Decision
 

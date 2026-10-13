@@ -14,7 +14,9 @@ const SYSTEM_PROMPT = systemMatch[1];
 const WEB_SEARCH_CALL_USD = 10 / 1000;
 
 const PRICES = {
-  "gpt-5.4-mini": { input: 0.375 / 1e6, cachedInput: 0.0375 / 1e6, output: 2.25 / 1e6 },
+  // Standard processing, short context; verified 2026-10-13 against OpenAI docs.
+  "gpt-6-luna": { input: 0.10 / 1e6, cachedInput: 0.01 / 1e6, cacheWrite: 0.125 / 1e6, output: 0.50 / 1e6 },
+  "gpt-5.4-mini": { input: 0.75 / 1e6, cachedInput: 0.075 / 1e6, output: 4.50 / 1e6 },
 };
 
 function truncate(text, maxLen) {
@@ -85,8 +87,10 @@ function assertPromptEncoding(label, prompt) {
 
 function estimateCost(usage, searches, price) {
   const cached = usage.input_tokens_details?.cached_tokens ?? 0;
-  const uncached = Math.max(0, usage.input_tokens - cached);
-  const tokenCost = uncached * price.input + cached * price.cachedInput + usage.output_tokens * price.output;
+  const written = usage.input_tokens_details?.cache_write_tokens ?? 0;
+  const uncached = Math.max(0, usage.input_tokens - cached - written);
+  const tokenCost = uncached * price.input + cached * price.cachedInput
+    + written * (price.cacheWrite ?? price.input) + usage.output_tokens * price.output;
   const searchCost = searches * WEB_SEARCH_CALL_USD;
   return { tokenCost, searchCost, total: tokenCost + searchCost };
 }
@@ -124,7 +128,7 @@ if (!process.env.OPENAI_API_KEY) {
 }
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const model = process.env.SONDEUR_MODEL ?? "gpt-5.4-mini";
+const model = process.env.SONDEUR_MODEL ?? "gpt-6-luna";
 const price = PRICES[model];
 if (!price) throw new Error(`No price table for ${model}`);
 
@@ -134,6 +138,7 @@ for (const c of cases) {
 
   const res = await client.responses.create({
     model,
+    ...(model === "gpt-6-luna" ? { reasoning: { effort: "none" } } : {}),
     instructions: SYSTEM_PROMPT,
     input,
     tools: [{ type: "web_search" }],
@@ -143,12 +148,13 @@ for (const c of cases) {
   const searches = res.output.filter((o) => o.type === "web_search_call").length;
   const cost = estimateCost(res.usage, searches, price);
   const cached = res.usage.input_tokens_details?.cached_tokens ?? 0;
+  const written = res.usage.input_tokens_details?.cache_write_tokens ?? 0;
   const reasoning = res.usage.output_tokens_details?.reasoning_tokens ?? 0;
 
   console.log(`\n== ${c.name} ==`);
   console.log(`model=${model}`);
   console.log(`prompt_preview=${JSON.stringify(input.slice(0, 180))}`);
-  console.log(`input=${res.usage.input_tokens} cached=${cached} output=${res.usage.output_tokens} reasoning=${reasoning} web_search=${searches}`);
+  console.log(`input=${res.usage.input_tokens} cached=${cached} cache_write=${written} output=${res.usage.output_tokens} reasoning=${reasoning} web_search=${searches}`);
   console.log(`token_cost=$${cost.tokenCost.toFixed(5)} search_cost=$${cost.searchCost.toFixed(5)} total=$${cost.total.toFixed(5)}`);
   console.log(`output_preview=${JSON.stringify((res.output_text ?? "").slice(0, 180))}`);
 }

@@ -108,9 +108,11 @@ async function* mockStream(req: ExpandRequest): AsyncGenerator<string> {
 async function* openaiStream(req: ExpandRequest): AsyncGenerator<string> {
   const { default: OpenAI } = await import("openai");
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const model = process.env.SONDEUR_MODEL ?? "gpt-5.4-mini";
+  const model = process.env.SONDEUR_MODEL ?? "gpt-6-luna";
   const stream = await client.responses.create({
     model,
+    // Preserve the previous mini model's effective effort; Luna defaults to medium.
+    ...(model === "gpt-6-luna" ? { reasoning: { effort: "none" as const } } : {}),
     stream: true,
     instructions: SYSTEM_PROMPT,
     input: buildUserPrompt(req),

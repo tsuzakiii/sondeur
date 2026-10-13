@@ -91,8 +91,15 @@ The app falls back to mock streaming when `OPENAI_API_KEY` is not set.
 
 ```bash
 OPENAI_API_KEY=sk-...
-SONDEUR_MODEL=gpt-5.4-mini
+SONDEUR_MODEL=gpt-6-luna
 ```
+
+The default model is `gpt-6-luna`. Explanation generation explicitly uses
+`reasoning.effort: "none"` to preserve the previous model's latency baseline;
+RSS suggestion generation keeps its existing `low` effort. `SONDEUR_MODEL`
+overrides both routes. For production, update any existing Vercel override and
+redeploy the verified production source; a repository default change alone does
+not change an existing deployment. See `docs/pricing-model.md` for rollout checks.
 
 ## Supabase Setup
 
