@@ -25,6 +25,6 @@
 
 ## Supabase
 
-- Apply migrations `0001` through `0006` in order.
+- Apply migrations `0001` through `0007` in order, after checking which are already applied. `0007` is required before deploying the checkout lock and in-flight session code.
 - Run `docs/supabase-production-check.sql` in the production SQL Editor.
 - Confirm `consume_guest_quota` and `cleanup_guest_usage` are executable by `service_role` only.

@@ -40,6 +40,22 @@ export default function Home() {
   const [billingNotice, setBillingNotice] = useState<BillingReturnStatus | null>(
     () => readBillingReturnStatus()
   );
+  // /auth/confirm がリンク検証に失敗した時の ?auth_error= を拾って表示する (無言失敗の禁止)
+  const [authError, setAuthError] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URL(window.location.href).searchParams.get("auth_error");
+  });
+
+  useEffect(() => {
+    if (!authError) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("auth_error")) {
+      url.searchParams.delete("auth_error");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+    const timer = window.setTimeout(() => setAuthError(null), 10000);
+    return () => window.clearTimeout(timer);
+  }, [authError]);
   const mounted = useClientMounted();
   useEffect(() => {
     initAuth();
@@ -77,7 +93,9 @@ export default function Home() {
         if (!cancelled) setSuggestions(next);
       }, 0);
     };
-    const cacheKey = `sondeur.suggestions.${locale}`;
+    // v2: フォールバック汚染事故 (2026-07-10、失効キー期間にfallbackが日付付きで
+    // キャッシュされ丸一日固定表示) の切り捨てのためキー版数を上げた
+    const cacheKey = `sondeur.suggestions.v2.${locale}`;
     try {
       const raw = localStorage.getItem(cacheKey);
       if (raw) {
@@ -100,7 +118,11 @@ export default function Home() {
         if (cancelled) return;
         if (Array.isArray(d?.suggestions) && d.suggestions.length > 0) {
           setSuggestions(d.suggestions);
-          try { localStorage.setItem(cacheKey, JSON.stringify({ date: d.date, suggestions: d.suggestions })); } catch {}
+          // fallback (生成失敗時の固定リスト) は表示はするがキャッシュしない —
+          // 日付付きで保存すると翌日まで新鮮なサジェストに戻れなくなるため
+          if (d.source !== "fallback") {
+            try { localStorage.setItem(cacheKey, JSON.stringify({ date: d.date, suggestions: d.suggestions })); } catch {}
+          }
         }
       })
       .catch(() => {});
@@ -179,6 +201,25 @@ export default function Home() {
                 // これをしないとリロード後に同じ notice が復活する。
                 clearBillingReturnStatus();
               }}
+              className="shrink-0 rounded px-1.5 text-slate-400 hover:text-slate-600"
+              aria-label={t("home.close")}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {authError && (
+        <div className="neu-raised fade-up fixed left-1/2 top-6 z-30 w-[min(30rem,85vw)] -translate-x-1/2 rounded-2xl px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="text-[13px] leading-6 text-slate-600">
+              <span className="font-semibold text-wine">{t("auth.callbackErrorTitle")}</span>
+              <br />
+              {t("auth.callbackErrorBody")}
+            </div>
+            <button
+              onClick={() => setAuthError(null)}
               className="shrink-0 rounded px-1.5 text-slate-400 hover:text-slate-600"
               aria-label={t("home.close")}
             >
@@ -304,8 +345,10 @@ export default function Home() {
                   <span><span className="font-semibold" style={{ color: "#b8912a" }}>Ask</span> — {t("graph.askDesc")}</span>
                 </div>
               </div>
-              <div className="fixed inset-x-0 bottom-5 flex justify-center">
-              <div className="neu-raised fade-up flex w-[min(36rem,55vw)] gap-2 rounded-2xl p-2 max-md:w-[calc(100vw-1.5rem)]">
+              {/* pointer-events-none 必須: この帯は全幅で、左下の AuthFooter に被さって
+                  クリックを食う (2026-07-10 に実際に起きた)。子側だけ auto に戻す */}
+              <div className="pointer-events-none fixed inset-x-0 bottom-5 flex justify-center">
+              <div className="neu-raised fade-up pointer-events-auto flex w-[min(36rem,55vw)] gap-2 rounded-2xl p-2 max-md:w-[calc(100vw-1.5rem)]">
                 <input
                   autoFocus
                   value={question}

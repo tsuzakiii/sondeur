@@ -2,7 +2,7 @@
 
 Sondeur is a web app for exploring AI-generated explanations by selecting unclear phrases and expanding them into follow-up nodes.
 
-Live app: https://sondeur.vercel.app
+Live app: https://sondeur.app
 
 | Home | Exploration tree on mobile |
 | --- | --- |
@@ -47,15 +47,17 @@ One generated root, follow-up, or free-form answer counts as one node.
 
 These items are not fully handled by the repository and must be completed before a public paid launch:
 
-- Fill the Commercial Disclosure placeholders in `src/app/legal/tokushoho/page.tsx`:
-  `【運営者氏名】` twice and `【連絡先メールアドレス】` once.
-- Apply all Supabase migrations in order. `0006_guest_quota_grant.sql` is security-critical because it closes leftover `anon` grants.
+- Review the existing operator/contact information in `src/app/legal/tokushoho/page.tsx` (preserved from production).
+- Verify all Supabase migrations through `0007` are applied. `0006_guest_quota_grant.sql` closes leftover `anon` grants; `0007_checkout_locks_and_in_flight.sql` is required for checkout concurrency protection.
 - Create live Stripe USD prices with `scripts/setup_stripe.mjs`, then set `STRIPE_PRICE_STANDARD` and `STRIPE_PRICE_PRO` in Vercel.
 - Confirm Stripe is in live mode, not test mode.
 - In Stripe Billing settings, configure failed-payment handling so subscriptions are canceled after retry failure.
 - Configure and test the launch billing flow described in `docs/billing-flow.md`.
 - Check trademark availability for `Sondeur` in the target launch markets before spending on launch distribution.
 - Optional but recommended: set `SENTRY_DSN` and confirm Vercel Analytics is enabled for the production project.
+
+See `docs/release-integration-2026-10-13.md` for the reconciled production source,
+verification evidence, and the remaining release gates.
 
 ## Architecture
 
@@ -91,8 +93,15 @@ The app falls back to mock streaming when `OPENAI_API_KEY` is not set.
 
 ```bash
 OPENAI_API_KEY=sk-...
-SONDEUR_MODEL=gpt-5.4-mini
+SONDEUR_MODEL=gpt-6-luna
 ```
+
+The default model is `gpt-6-luna`. Explanation generation explicitly uses
+`reasoning.effort: "none"` to preserve the previous model's latency baseline;
+RSS suggestion generation keeps its existing `low` effort. `SONDEUR_MODEL`
+overrides both routes. For production, update any existing Vercel override and
+redeploy the verified production source; a repository default change alone does
+not change an existing deployment. See `docs/pricing-model.md` for rollout checks.
 
 ## Supabase Setup
 

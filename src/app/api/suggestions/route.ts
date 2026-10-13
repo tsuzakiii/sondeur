@@ -14,9 +14,9 @@ const FALLBACK_JA = [
 ];
 
 const NHK_FEEDS = [
-  { url: "https://www.nhk.or.jp/rss/news/cat3.xml", label: "Science/Culture" },
-  { url: "https://www.nhk.or.jp/rss/news/cat5.xml", label: "Economy" },
-  { url: "https://www.nhk.or.jp/rss/news/cat6.xml", label: "International" },
+  { url: "https://news.web.nhk/n-data/conf/na/rss/cat3.xml", label: "Science/Medicine" },
+  { url: "https://news.web.nhk/n-data/conf/na/rss/cat5.xml", label: "Economy" },
+  { url: "https://news.web.nhk/n-data/conf/na/rss/cat6.xml", label: "International" },
 ];
 
 function todayJst(): string {
@@ -45,6 +45,11 @@ async function fetchHeadlines(): Promise<{ label: string; titles: string[] }[]> 
       return { label: feed.label, titles: parseTitles(await res.text(), 5) };
     })
   );
+  results.forEach((result, index) => {
+    if (result.status === "rejected") {
+      console.warn("[suggestions] RSS fetch failed", NHK_FEEDS[index].label, result.reason);
+    }
+  });
   return results
     .filter((r): r is PromiseFulfilledResult<{ label: string; titles: string[] }> => r.status === "fulfilled")
     .map((r) => r.value)
@@ -70,7 +75,7 @@ async function headlinesToQuestions(
 ): Promise<string[]> {
   const { default: OpenAI } = await import("openai");
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const model = process.env.SONDEUR_MODEL ?? "gpt-5.4-mini";
+  const model = process.env.SONDEUR_MODEL ?? "gpt-6-luna";
   const headlines = feeds
     .map((f) => `[${f.label}]\n${f.titles.map((t) => `- ${t}`).join("\n")}`)
     .join("\n\n");

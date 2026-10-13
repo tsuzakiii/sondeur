@@ -121,4 +121,4 @@ if (failures.length > 0) {
 console.log("- required environment variables look present");
 console.log("- Stripe keys look live-mode");
 console.log("- Commercial Disclosure has no launch placeholders");
-console.log("- local Supabase migration files 0001-0006 are present");
+console.log("- local Supabase migration files 0001-0007 are present (remote application must be verified separately)");
