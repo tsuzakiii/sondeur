@@ -17,11 +17,11 @@ Master: cross-user tree/profile isolation, checkout locking and in-flight tracki
 
 Luna: expansion defaults to `gpt-6-luna` with explicit `none` reasoning; RSS suggestions retain `low`. `SONDEUR_MODEL` remains a rollback override. External search-provider migration is not included.
 
-Additional integration fixes: auth redirects use private/no-store caching; webhook setup refuses to delete an existing endpoint; release documentation requires migration 0007.
+Additional integration fixes: auth redirects use private/no-store caching; webhook setup refuses to delete an existing endpoint; release documentation requires migration 0007. NHK RSS URLs now use the current news.web.nhk endpoint; individual fetch failures are logged while successful categories remain usable. Tests cover RSS outage recovery, partial failures, and provider recovery without caching fallback results.
 
 ## Validation and infrastructure
 
-- TypeScript, ESLint, 114 tests (18 files), and the production Next.js build passed.
+- TypeScript, ESLint, 117 tests (19 files), and the production Next.js build passed.
 - Added regression coverage for token-hash and PKCE callbacks, session cookies, expired/missing links, all four expansion operations, English/model overrides, quota rejection before a paid call, and provider-stream errors.
 - Local browser: root generation streamed through the API into a node; no browser errors. This test used the built-in mock, not a live model.
 - Vercel Production has the required variable names; values are sensitive and were not read. No `SONDEUR_MODEL` override exists, so a new deployment uses Luna by default. Presence does not prove credential validity.
@@ -33,16 +33,23 @@ Additional integration fixes: auth redirects use private/no-store caching; webho
 
 ## Remaining gates before production promotion
 
-1. Complete the live Luna preview smoke test (Japanese/English, root/what/why/ask, streaming and RSS suggestions). Restore the temporary OpenAI environment scope and delete the test deployment afterward.
-2. Verify production credential values using the deployed runtime / owner dashboard; `npm run release:check` validates format/presence, not account access. Never copy production secrets into the repository or logs.
-3. Verify magic-link login and live billing → webhook → profile → Portal cancellation using an owner-controlled account. Preview does not receive production Supabase or Stripe credentials.
-4. Merge the reviewed integration PR with a merge commit, verify the resulting SHA, and stage that exact production build without assigning domains before promotion. Retain the old deployment ID above for rollback. A normal `master` deployment before integration would lose production-only features.
+1. Verify production Supabase and Stripe credentials using the deployed runtime / owner dashboard; `npm run release:check` validates format/presence, not account access. Never copy production secrets into the repository or logs.
+2. Verify magic-link login and live billing → webhook → profile → Portal cancellation using an owner-controlled account. Preview does not receive production Supabase or Stripe credentials.
+3. Merge the reviewed integration PR with a merge commit, verify the resulting SHA, and stage that exact production build without assigning domains before promotion. Retain the old deployment ID above for rollback. A normal `master` deployment before integration would lose production-only features.
 
-The current tools can read the project's default scope but explicit team-scoped calls return 403. Do not change accounts merely to work around this. For CLI deployment, verify login/team/project first and use `vercel --prod --skip-domain`; this document does not assert CLI authentication is already configured.
+### Live Preview verification and cleanup
 
-### Preview attempt and cleanup status
+Vercel CLI 63.1.2 authenticated successfully as `matsuzaki1005-7063` in `matsuzaki1005-7063s-projects`. The earlier device code was no longer usable; the renewed login completed. Explicit team-scoped connector calls still return 403, but the authenticated CLI can deploy, inspect, test, and delete previews.
 
-The Git-source previews `dpl_FumkQY6PSSbY8wQ1HPacend4frMc` and `dpl_B8K2e5cPCFZDLScnzxPW91mJ1hkJ` both ended in `ERROR` with `git_info_fail` before building. No live Luna inference was performed. CLI 63.1.2 reports logged out; its device login is awaiting the owner. The temporary OpenAI Preview scope was restored to Production-only while waiting. Delete both failed preview records after CLI access is available; the connector does not expose deployment deletion. Do not promote either failed deployment.
+The Git-source previews `dpl_FumkQY6PSSbY8wQ1HPacend4frMc` and `dpl_B8K2e5cPCFZDLScnzxPW91mJ1hkJ` failed with `git_info_fail` before building and were deleted. CLI source uploads built successfully:
+
+- `dpl_A5SYokmKKDsyuEmFHVtcEFQieBR6`, source `af5793c`: real OpenAI streaming succeeded for root/JA (11.81s), what/EN (8.89s), why/JA (6.27s), and ask/EN (6.05s). All returned HTTP 200 and non-mock answers with source links. These are four samples, not a latency benchmark or a full language/operation matrix.
+- That first preview exposed an RSS failure (`no headlines`); the model was not called for suggestions. Both old and current NHK endpoints were reachable locally, so this was not a universal outage of the old URL.
+- `dpl_DaQJUQzKem5xaxw39dZeog4hnMEN`, source `364f5dc`: Vercel production build passed after updating RSS URLs. Real suggestions returned HTTP 200, three questions, and `source: rss+llm` in Japanese (5.81s) and English (5.68s). The generation used Luna with low reasoning and no paid search tool.
+
+The owner authorized temporary reuse of the Production OpenAI key and a small amount of API usage. Its value was never read or printed. The environment scope was restored to Production-only immediately after each preview was created. All four test/failed preview records above have been deleted. The automation bypass generated by `vercel curl` was revoked by its exact creation timestamp and owner; zero project bypass tokens remain, and Vercel Authentication remains `all_except_custom_domains`.
+
+Production is still `dpl_5MwvpQMuBz37pTkbHNEmp45HFb57`; no production promotion occurred. For the release, verify login/team/project and stage with `vercel --prod --skip-domain` before assigning domains. Preview validation did not include production Supabase/Stripe credentials, real magic-link delivery, payment processing, or measured provider token/tool usage costs.
 
 ## Existing advisor findings
 
