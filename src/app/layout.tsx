@@ -21,7 +21,7 @@ const notoSansJp = Noto_Sans_JP({
   weight: ["400", "500", "700"],
 });
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sondeur.vercel.app";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sondeur.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

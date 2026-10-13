@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { signInWithEmail, signOut, useAuthInfo } from "@/lib/authState";
-import { PLAN_NODE_LIMITS } from "@/lib/planLimits";
+import { useTreeStore } from "@/lib/store";
+import { GUEST_NODE_LIMIT, PLAN_NODE_LIMITS } from "@/lib/planLimits";
 import { useI18n, useLocale, LOCALES } from "@/lib/i18n";
 import { clearBillingReturnStatus, readBillingReturnStatus } from "@/lib/billingReturn";
 import { createCancellableSleep } from "@/lib/cancellableSleep";
@@ -73,6 +74,13 @@ export default function AuthFooter() {
   const [showPlans, setShowPlans] = useState(false);
   const [slowNote, setSlowNote] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // ゲストのお試し枠表示用。上限判定 (page.tsx の guardGuestLimit) と同じ数え方に揃える
+  const { trees } = useTreeStore();
+  const guestUsed = useMemo(
+    () => Object.values(trees).reduce((acc, tr) => acc + Object.keys(tr.nodes).length, 0),
+    [trees]
+  );
 
   useEffect(() => {
     // localStorage 名前空間の掃除は authState.ts (認証遷移を扱う唯一の場所) が担当する。
@@ -355,9 +363,17 @@ export default function AuthFooter() {
           popupOpen ? "neu-inset" : "hover:neu-raised-sm"
         }`}
       >
-        <span className="min-w-0 flex-1 text-left text-[12px] text-slate-400">
-          {supabaseReady ? t("auth.signIn") : t("lang.title")}
-        </span>
+        <div className="min-w-0 flex-1 text-left">
+          <div className="text-[12px] text-slate-400">
+            {supabaseReady ? t("auth.signIn") : t("lang.title")}
+          </div>
+          {supabaseReady && (
+            <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
+              <span className="font-semibold text-navy">{t("auth.trialLabel")}</span>
+              <span className="text-slate-400">{Math.min(guestUsed, GUEST_NODE_LIMIT)}/{GUEST_NODE_LIMIT}</span>
+            </div>
+          )}
+        </div>
         <span className="shrink-0 text-[22px] leading-none text-slate-400">⚙</span>
       </button>
 
