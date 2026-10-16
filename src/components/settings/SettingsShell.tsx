@@ -25,8 +25,8 @@ export default function SettingsShell({ children }: { children: ReactNode }) {
     </header>
     <h1 className="mb-8 text-3xl font-semibold tracking-tight">{t("settings.title")}</h1>
     <div className="grid gap-8 md:grid-cols-[210px_minmax(0,1fr)] md:gap-12">
-      <nav aria-label={t("settings.title")} className="flex flex-wrap gap-2 self-start md:sticky md:top-8 md:flex-col">
-        {sections.map((section) => <Link key={section} href={`/settings/${section}`} aria-current={path === `/settings/${section}` ? "page" : undefined} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm ${path === `/settings/${section}` ? "neu-inset font-semibold text-navy" : "text-slate-500 hover:neu-flat"}`}>{t(`settings.${section}`)}</Link>)}
+      <nav aria-label={t("settings.title")} className="navigation-surface flex flex-wrap gap-2 self-start rounded-xl p-3 md:sticky md:top-8 md:flex-col">
+        {sections.map((section) => <Link key={section} href={`/settings/${section}`} aria-current={path === `/settings/${section}` ? "page" : undefined} className="navigation-item flex items-center gap-3 rounded-lg px-4 py-3 text-sm">{t(`settings.${section}`)}</Link>)}
       </nav>
       <main className="min-w-0 pb-10">{children}</main>
     </div>

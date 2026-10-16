@@ -222,7 +222,7 @@ export default function ReadingPanel({
   return (
     <div
       ref={panelRef}
-      className="relative flex h-full w-full flex-col border-l border-line bg-background shadow-[-8px_0_24px_rgba(150,160,180,0.18)] max-md:rounded-t-2xl max-md:border-l-0 max-md:border-t max-md:shadow-[0_-8px_24px_rgba(150,160,180,0.18)]"
+      className="relative flex h-full w-full flex-col border-l border-line reading-surface max-md:rounded-t-2xl max-md:border-l-0 max-md:border-t"
     >
       <div className="flex items-start justify-between gap-2 border-b border-line px-5 py-3.5">
         <div className="min-w-0">

@@ -17,6 +17,13 @@
   --action-danger: #8e3a52;
   --prose: #3a4458;
   --node-core: #ffffff;
+  --rail: #223653;
+  --rail-text: #f1f5fc;
+  --rail-muted: #b6c5da;
+  --rail-hover: #2c4260;
+  --rail-selected: #374f70;
+  --rail-line: #455c79;
+  --rail-danger: #ffbecd;
   color-scheme: light;
 }
 
@@ -29,6 +36,11 @@
   --color-line: var(--line);
   --color-surface: var(--surface);
   --color-hover: var(--hover);
+  --color-rail-text: var(--rail-text);
+  --color-rail-muted: var(--rail-muted);
+  --color-rail-hover: var(--rail-hover);
+  --color-rail-line: var(--rail-line);
+  --color-rail-danger: var(--rail-danger);
   --font-sans: var(--font-noto-sans-jp), var(--font-geist-sans), sans-serif;
   --font-mono: var(--font-geist-mono);
 }
@@ -183,6 +195,9 @@ body {
   --hover: #29354a;
   --prose: #d6dfef;
   --node-core: #253248;
+  --rail: #101c2e;
+  --rail-hover: #21334d;
+  --rail-selected: #2c4260;
   --color-slate-300: #7e8da6;
   --color-slate-400: #94a3bc;
   --color-slate-500: #abb8cd;
@@ -196,7 +211,7 @@ body {
 .bg-navy { background-color: var(--action); }
 .bg-wine { background-color: var(--action-danger); }
 :focus-visible { outline: 2px solid var(--navy); outline-offset: 4px; }
-.settings-card { background: var(--background); border-radius: 1.25rem; padding: clamp(1.5rem, 3vw, 2rem); box-shadow: 5px 5px 12px var(--shadow-dark), -5px -5px 12px var(--shadow-light); }
+.settings-card { background: var(--background); border-top: 1px solid var(--line); padding: 1.75rem 0; }
 .settings-button { display: inline-flex; justify-content: center; align-items: center; gap: .5rem; background: var(--background); box-shadow: 3px 3px 7px var(--shadow-dark), -3px -3px 7px var(--shadow-light); border-radius: .75rem; padding: .65rem 1rem; font-size: .875rem; font-weight: 500; }
 .settings-button:hover { color: var(--navy); }
 .settings-button:active { box-shadow: inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light); }
@@ -205,13 +220,32 @@ body {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 .theme-preview { display: flex; height: 76px; overflow: hidden; border: 1px solid var(--line); border-radius: .5rem; background: #edf0f6; }
-.theme-preview > span:first-child { width: 28%; background: #d6deeb; border-right: 1px solid #c0cadb; }
+.theme-preview > span:first-child { width: 28%; background: #223653; border-right: 1px solid #455c79; }
 .theme-preview > span:last-child { margin: 14px 10px; width: 50%; border-top: 5px solid #8092b2; border-bottom: 5px solid #c1ccdc; }
 .theme-preview-dark { background: #171d29; }
-.theme-preview-dark > span:first-child { background: #263147; border-color: #354157; }
+.theme-preview-dark > span:first-child { background: #101c2e; border-color: #354157; }
 .theme-preview-dark > span:last-child { border-color: #647b9e; }
 .theme-preview-system { background: linear-gradient(110deg, #edf0f6 50%, #171d29 50%); }
 
 .language-menu { background: var(--background); box-shadow: 7px 9px 22px var(--shadow-dark), -3px -3px 10px var(--shadow-light); border: 1px solid color-mix(in srgb, var(--line) 65%, transparent); }
 .theme-radio { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 14px; height: 14px; border: 1px solid var(--line); border-radius: 50%; }
 .theme-radio::after { content: ""; width: 6px; height: 6px; background: var(--navy); border-radius: 50%; opacity: 0; }
+
+/* Separate navigation is a flat material; only controls on the work surface
+   use paired light/dark relief. These tokens are independent of graph accents. */
+.navigation-surface { background: var(--rail); color: var(--rail-text); }
+.navigation-surface :focus-visible { outline-color: var(--rail-text); }
+.navigation-item { color: var(--rail-muted); transition: background-color .15s ease, color .15s ease; }
+.navigation-item:hover { background: var(--rail-hover); color: var(--rail-text); }
+.navigation-item[data-active="true"], .navigation-item[aria-current="page"] {
+  background: var(--rail-selected);
+  color: var(--rail-text);
+  box-shadow: inset 2px 0 0 var(--rail-text);
+  font-weight: 600;
+}
+.rail-search { background: var(--rail-hover); border: 1px solid var(--rail-line); }
+.rail-confirm { background: var(--rail-selected); border: 1px solid var(--rail-line); box-shadow: 0 8px 24px #101c2e40; }
+.reading-surface {
+  --background: var(--surface);
+  background: var(--surface);
+}
