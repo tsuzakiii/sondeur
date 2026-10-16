@@ -312,7 +312,7 @@ export default function ReadingPanel({
         )}
       </div>
 
-      <div className="border-t border-line px-3 py-2.5">
+      <div className="reading-footer shrink-0 border-t border-line px-3 pt-2.5">
         <div className="flex gap-2">
           <input
             value={nodeQuestion}

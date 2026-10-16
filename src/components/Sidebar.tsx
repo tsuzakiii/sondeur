@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import AuthFooter from "./AuthFooter";
 import { useAuthInfo } from "@/lib/authState";
 import { useI18n } from "@/lib/i18n";
@@ -64,6 +64,13 @@ export default function Sidebar({
   onDeleteTree: (id: string) => void;
 }) {
   const { t } = useI18n();
+  const panelId = useId();
+  const openButton = useRef<HTMLButtonElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  function closeSidebar() {
+    onToggle();
+    requestAnimationFrame(() => openButton.current?.focus());
+  }
   const [query, setQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string; active: boolean; time: string; nodeText: string } | null>(null);
   const [deleteRect, setDeleteRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
@@ -73,8 +80,7 @@ export default function Sidebar({
   const auth = useAuthInfo();
   // ゲストのツリーはサーバーに存在しないので共有は原理的に不可 → ボタン自体を出さない
   const canShare = auth.kind === "signedIn";
-  // Sidebar は unmount しない (この component 内の !open 分岐が早期 return するだけで
-  // 常に mount されている) ので、Date.now() を 1 分刻みで更新する。lint の
+  // Sidebar は開閉中も mount したままなので、Date.now() を 1 分刻みで更新する。lint の
   // `Cannot call impure function during render` を避けつつ「N 分前 → M 分前」が経時で
   // 正しく進むようにする。
   const [now, setNow] = useState(() => Date.now());
@@ -99,29 +105,41 @@ export default function Sidebar({
     return new Date(ts).toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
   };
 
-  if (!open) {
-    return (
+  return (
+    <>
       <button
-        onClick={onToggle}
-        className="neu-raised-sm absolute left-3 top-3 z-20 rounded-xl px-2.5 py-1.5 text-slate-500 transition-colors hover:text-navy"
+        ref={openButton}
+        onClick={() => {
+          onToggle();
+          requestAnimationFrame(() => closeButton.current?.focus());
+        }}
+        className="sidebar-open-button neu-raised-sm absolute left-3 top-3 z-20 rounded-xl px-2.5 py-1.5 text-slate-500 hover:text-navy"
+        data-visible={!open}
+        tabIndex={open ? -1 : 0}
+        aria-hidden={open}
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-label={t("sidebar.open")}
         title={t("sidebar.open")}
       >
         ≡
       </button>
-    );
-  }
-
-  return (
-    <>
-      {/* モバイル: ドロワーの背面タップで閉じる */}
+      {/* Keep the drawer mounted so closing can animate; inert removes hidden controls. */}
       <div
-        className="fixed inset-0 z-40 bg-slate-900/15 backdrop-blur-[2px] md:hidden"
-        onClick={onToggle}
+        className="sidebar-backdrop fixed inset-0 z-40 bg-slate-900/15 backdrop-blur-[2px] md:hidden"
+        data-open={open}
+        onClick={closeSidebar}
+        aria-hidden="true"
       />
-      <div className="navigation-surface flex h-full w-[clamp(200px,15vw,340px)] shrink-0 flex-col max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[min(85vw,320px)] max-md:shadow-xl">
+      <div className="sidebar-frame" data-open={open} inert={!open} aria-hidden={!open} id={panelId}>
+      <div className="sidebar-panel navigation-surface flex h-full flex-col">
       <div className="flex items-center justify-between px-4 py-3">
         <button
-          onClick={onToggle}
+          ref={closeButton}
+          onClick={closeSidebar}
+          aria-expanded={open}
+          aria-controls={panelId}
+          aria-label={t("sidebar.close")}
           className="rounded px-1.5 py-0.5 text-rail-muted transition-colors hover:text-rail-text"
           title={t("sidebar.close")}
         >
@@ -288,19 +306,21 @@ export default function Sidebar({
 
       <div className="mx-4 mb-1 border-b border-rail-line" />
       <AuthFooter />
+      </div>
+      </div>
 
       {/* Delete confirmation — card extends right */}
-      {deleteTarget && deleteRect && (
+      {open && deleteTarget && deleteRect && (
         <>
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-60"
             onClick={() => {
               setDeleteExpanded(false);
               setTimeout(() => { setDeleteTarget(null); setDeleteRect(null); }, 180);
             }}
           />
           <div
-            className="rail-confirm fixed z-50 overflow-hidden rounded-lg px-3 py-2"
+            className="rail-confirm fixed z-70 overflow-hidden rounded-lg px-3 py-2"
             style={{
               top: deleteRect.top,
               left: deleteRect.left,
@@ -339,7 +359,6 @@ export default function Sidebar({
           </div>
         </>
       )}
-      </div>
     </>
   );
 }

@@ -306,7 +306,7 @@ export default function Home() {
                   syncCollapsed(tree.id, id);
                 }}
               />
-              <div className="fixed bottom-5 left-1/2 z-20 w-[min(36rem,55vw)] -translate-x-1/2 max-md:w-[calc(100vw-1.5rem)]">
+              <div className="home-composer fixed left-1/2 z-20 w-[min(36rem,55vw)] -translate-x-1/2 max-md:w-[calc(100vw-1.5rem)]">
                 <div className="neu-raised flex gap-2 rounded-2xl p-2">
                   <input
                     value={question}
@@ -354,7 +354,7 @@ export default function Home() {
               </div>
               {/* pointer-events-none 必須: この帯は全幅で、左下の AuthFooter に被さって
                   クリックを食う (2026-07-10 に実際に起きた)。子側だけ auto に戻す */}
-              <div className="pointer-events-none fixed inset-x-0 bottom-5 flex justify-center">
+              <div className="pointer-events-none home-composer fixed inset-x-0 flex justify-center">
               <div className="neu-raised fade-up pointer-events-auto flex w-[min(36rem,55vw)] gap-2 rounded-2xl p-2 max-md:w-[calc(100vw-1.5rem)]">
                 <input
                   autoFocus
