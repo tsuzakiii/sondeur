@@ -38,5 +38,10 @@ export default function LoginPage() {
     </form>}
     {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
     <Link href="/" className="mt-9 text-sm text-slate-500">← {t("settings.back")}</Link>
+    <footer className="mt-8 flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-500">
+      <Link href="/legal/terms">{t("legal.terms")}</Link>
+      <Link href="/legal/privacy">{t("legal.privacy")}</Link>
+      <Link href="/legal/tokushoho">{t("legal.tokushoho")}</Link>
+    </footer>
   </main>;
 }
