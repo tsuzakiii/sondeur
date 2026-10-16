@@ -234,7 +234,7 @@ body {
 /* Separate navigation is a flat material; only controls on the work surface
    use paired light/dark relief. These tokens are independent of graph accents. */
 .navigation-surface { background: var(--rail); color: var(--rail-text); }
-.navigation-surface :focus-visible { outline-color: var(--rail-text); }
+.navigation-surface :focus-visible, .rail-confirm :focus-visible { outline-color: var(--rail-text); }
 .navigation-item { color: var(--rail-muted); transition: background-color .15s ease, color .15s ease; }
 .navigation-item:hover { background: var(--rail-hover); color: var(--rail-text); }
 .navigation-item[data-active="true"], .navigation-item[aria-current="page"] {
@@ -249,3 +249,40 @@ body {
   --background: var(--surface);
   background: var(--surface);
 }
+
+/* The panel retains its width while the frame releases space, so text does not
+   reflow during the slide. Fixed confirmation UI lives outside this frame. */
+.sidebar-frame {
+  --sidebar-width: clamp(200px, 15vw, 340px);
+  flex-shrink: 0;
+  width: var(--sidebar-width);
+  height: 100%;
+  overflow: hidden;
+  transition: width 240ms cubic-bezier(.2, .7, .3, 1);
+}
+.sidebar-frame[data-open="false"] { width: 0; }
+.sidebar-panel {
+  width: var(--sidebar-width);
+  transform: translateX(0);
+  transition: transform 240ms cubic-bezier(.2, .7, .3, 1);
+}
+.sidebar-frame[data-open="false"] .sidebar-panel { transform: translateX(-100%); }
+.sidebar-open-button { opacity: 1; transition: opacity 160ms ease; }
+.sidebar-open-button[data-visible="false"] { opacity: 0; pointer-events: none; }
+.sidebar-backdrop { opacity: 1; transition: opacity 240ms ease; }
+.sidebar-backdrop[data-open="false"] { opacity: 0; pointer-events: none; }
+@media (max-width: 767px) {
+  .sidebar-frame, .sidebar-frame[data-open="false"] {
+    --sidebar-width: min(85vw, 320px);
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    width: var(--sidebar-width);
+    pointer-events: none;
+  }
+  .sidebar-frame[data-open="true"] .sidebar-panel { pointer-events: auto; }
+}
+:root { --bottom-control-lift: 16px; }
+.home-composer { bottom: calc(1.25rem + var(--bottom-control-lift) + env(safe-area-inset-bottom, 0px)); }
+.sidebar-footer { padding-bottom: calc(.75rem + var(--bottom-control-lift) + env(safe-area-inset-bottom, 0px)); }
+.reading-footer { padding-bottom: calc(.625rem + var(--bottom-control-lift) + env(safe-area-inset-bottom, 0px)); }
