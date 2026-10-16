@@ -55,7 +55,7 @@ function BillingContent() {
   return <>
     <SettingsHeading section="billing" />
     {notice && <div role="status" className="mb-5 rounded-xl border border-line p-4 text-sm"><p className="font-medium">{t(`billing.${notice}Title`)}</p><p className="mt-1 text-slate-500">{t(`billing.${notice}Body`)}</p></div>}
-    {auth.kind === "signedOut" ? <div className="settings-card"><p className="font-medium">{t("settings.guestBilling")}</p><p className="mt-3 text-sm text-slate-500">{t("settings.trial", { used: Math.min(guestUsed, GUEST_NODE_LIMIT), limit: GUEST_NODE_LIMIT })}</p><Link href="/settings/account" className="settings-button mt-6">{t("auth.signIn")}</Link></div> : <>
+    {auth.kind === "signedOut" ? <div className="settings-card"><p className="font-medium">{t("settings.guestBilling")}</p><p className="mt-3 text-sm text-slate-500">{t("settings.trial", { used: Math.min(guestUsed, GUEST_NODE_LIMIT), limit: GUEST_NODE_LIMIT })}</p><Link href="/login" className="settings-button mt-6">{t("auth.signIn")}</Link></div> : <>
       <section className="settings-card">
         <h3 className="text-sm text-slate-500">{t("settings.currentPlan")}</h3>
         {failed ? <div role="alert" className="mt-4"><p className="text-sm">{t("settings.loadFailed")}</p><button className="settings-button mt-3" onClick={retry}>{t("settings.retry")}</button></div> : !profile ? <p role="status" className="mt-4">{t("settings.loading")}</p> : <>

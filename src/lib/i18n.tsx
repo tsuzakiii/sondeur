@@ -96,7 +96,7 @@ const en: Dict = {
   "home.submit": "Explore",
   "home.guestBlocked": "You've used all {limit} trial nodes.",
   "home.guestBlockedCta": "Sign in (free) to continue exploring. Your trails are preserved.",
-  "home.guestBlockedHint": "Open Account in Settings to sign in with your email.",
+  "home.guestBlockedHint": "Use Log in / Sign up to continue with your email.",
   "home.close": "Close",
   "home.hint": "{what} and {why}, as deep as you like.",
 
@@ -277,7 +277,7 @@ const ja: Dict = {
   "home.submit": "測深",
   "home.guestBlocked": "お試し枠（{limit}ノード）を使い切りました。",
   "home.guestBlockedCta": "ログイン（無料）すると続きから探索できます。データはそのまま引き継がれます。",
-  "home.guestBlockedHint": "設定の「アカウント」からログインできます（メールアドレスのみ）",
+  "home.guestBlockedHint": "「ログイン／登録」からメールアドレスでログインできます。",
   "home.close": "閉じる",
   "home.hint": "{what} と {why}、好きなだけ深く。",
 

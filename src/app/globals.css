@@ -196,9 +196,10 @@ body {
 .bg-navy { background-color: var(--action); }
 .bg-wine { background-color: var(--action-danger); }
 :focus-visible { outline: 2px solid var(--navy); outline-offset: 4px; }
-.settings-card { border: 1px solid var(--line); background: var(--surface); border-radius: 1rem; padding: 1.5rem; }
-.settings-button { display: inline-flex; justify-content: center; align-items: center; gap: .5rem; border: 1px solid var(--line); border-radius: .65rem; padding: .65rem 1rem; font-size: .875rem; font-weight: 500; }
-.settings-button:hover { background: var(--hover); }
+.settings-card { background: var(--background); border-radius: 1.25rem; padding: clamp(1.5rem, 3vw, 2rem); box-shadow: 5px 5px 12px var(--shadow-dark), -5px -5px 12px var(--shadow-light); }
+.settings-button { display: inline-flex; justify-content: center; align-items: center; gap: .5rem; background: var(--background); box-shadow: 3px 3px 7px var(--shadow-dark), -3px -3px 7px var(--shadow-light); border-radius: .75rem; padding: .65rem 1rem; font-size: .875rem; font-weight: 500; }
+.settings-button:hover { color: var(--navy); }
+.settings-button:active { box-shadow: inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light); }
 .settings-button:disabled { opacity: .5; cursor: wait; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
@@ -210,3 +211,7 @@ body {
 .theme-preview-dark > span:first-child { background: #263147; border-color: #354157; }
 .theme-preview-dark > span:last-child { border-color: #647b9e; }
 .theme-preview-system { background: linear-gradient(110deg, #edf0f6 50%, #171d29 50%); }
+
+.language-menu { background: var(--background); box-shadow: 7px 9px 22px var(--shadow-dark), -3px -3px 10px var(--shadow-light); border: 1px solid color-mix(in srgb, var(--line) 65%, transparent); }
+.theme-radio { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 14px; height: 14px; border: 1px solid var(--line); border-radius: 50%; }
+.theme-radio::after { content: ""; width: 6px; height: 6px; background: var(--navy); border-radius: 50%; opacity: 0; }

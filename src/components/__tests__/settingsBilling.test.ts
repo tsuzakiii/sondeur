@@ -31,7 +31,7 @@ it("blocks billing actions after a profile fetch failure", () => {
 });
 it("signed-out visitors get an account link, no billing action", () => {
   state.auth.kind = "signedOut";
-  expect(render()).toContain('/settings/account');
+  expect(render()).toContain('/login');
   expect(render()).not.toContain("settings.choose");
   expect(render()).not.toContain("settings.cancel");
 });
