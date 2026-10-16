@@ -1,8 +1,9 @@
 "use client";
 
 import { getSupabase } from "./supabase/client";
-import { clearTrees, getState, getStorageOwner, getStoredTreesForOwner, hydrate } from "./store";
+import { clearTrees, getState, getStorageOwner, getStoredTreesForOwner, hydrate, restoreTrailDocument } from "./store";
 import type { SondeurNode, Tree } from "./types";
+import type { TrailDocument } from "./trailDocument";
 
 /**
  * Supabase への write-through 同期。
@@ -32,6 +33,7 @@ function enqueue(treeId: string, op: string, fn: () => Promise<void>) {
   const prev = queues.get(treeId) ?? Promise.resolve();
   const next = prev.then(fn).catch(logError(op));
   queues.set(treeId, next);
+  return next;
 }
 
 // ---- row mapping ----
@@ -58,6 +60,18 @@ interface NodeRow {
   content: string;
   collapsed: boolean;
   created_at: string;
+}
+
+interface DocumentRow {
+  tree_id: string;
+  markdown: string;
+  source_key: string;
+  created_at: string;
+  locale: string;
+}
+
+function rowToDocument(row: DocumentRow): TrailDocument {
+  return { markdown: row.markdown, sourceKey: row.source_key, createdAt: Date.parse(row.created_at), locale: row.locale, synced: true };
 }
 
 function nodeToRow(n: SondeurNode): NodeRow {
@@ -143,7 +157,9 @@ function mergeTree(local: Tree, remote: Tree): { merged: Tree; needsRepair: bool
     }
   }
   const base = local.updatedAt >= remote.updatedAt ? local : remote;
-  return { merged: { ...base, nodes }, needsRepair };
+  const document = !remote.document || (local.document && local.document.createdAt > remote.document.createdAt)
+    ? local.document : remote.document;
+  return { merged: { ...base, nodes, document, documentGenerations: local.documentGenerations }, needsRepair };
 }
 
 /** ログイン時: リモートを読み込み、ローカルとマージして状態を差し替える。欠けている側は修復 push */
@@ -154,15 +170,17 @@ export async function startSync(uid: string) {
   userId = uid;
   const localOwner = getStorageOwner();
 
-  const [{ data: treeRows, error: tErr }, { data: nodeRows, error: nErr }] = await Promise.all([
+  const [{ data: treeRows, error: tErr }, { data: nodeRows, error: nErr }, { data: documentRows, error: dErr }] = await Promise.all([
     supabase.from("trees").select("*"),
     supabase.from("nodes").select("*"),
+    supabase.from("tree_documents").select("tree_id,markdown,source_key,created_at,locale"),
   ]);
   if (gen !== generation) return; // 取得中にログアウト/アカウント切替が起きた
   if (tErr || nErr) {
     console.error("[sync] initial load failed", tErr ?? nErr);
     return;
   }
+  if (dErr) console.error("[sync] document load failed", dErr);
 
   const remote: Record<string, Tree> = {};
   for (const r of (treeRows ?? []) as TreeRow[]) {
@@ -179,6 +197,9 @@ export async function startSync(uid: string) {
   for (const r of (nodeRows ?? []) as NodeRow[]) {
     const tree = remote[r.tree_id];
     if (tree) tree.nodes[r.id] = rowToNode(r);
+  }
+  for (const row of (documentRows ?? []) as DocumentRow[]) {
+    if (remote[row.tree_id]) remote[row.tree_id].document = rowToDocument(row);
   }
 
   const local =
@@ -205,6 +226,10 @@ export async function startSync(uid: string) {
 
   if (gen !== generation) return;
   hydrate(merged, uid);
+  // Includes old device-only documents and guest documents being migrated on sign-in.
+  for (const tree of Object.values(merged)) {
+    if (tree.document && !tree.document.synced) void syncDocumentSaved(tree.id);
+  }
 }
 
 export function stopSync(options: { clearLocal?: boolean } = {}) {
@@ -214,6 +239,35 @@ export function stopSync(options: { clearLocal?: boolean } = {}) {
 }
 
 // ---- write-through hooks ----
+
+/** Serialize behind tree/node writes and save only under the initiating account. */
+export async function syncDocumentSaved(treeId: string): Promise<boolean> {
+  const uid = userId;
+  const gen = generation;
+  const tree = getState().trees[treeId];
+  const document = tree?.document;
+  if (!uid || getStorageOwner() !== uid || !tree || !document) return false;
+  const active = () => generation === gen && userId === uid && getStorageOwner() === uid && Boolean(getState().trees[treeId]);
+  let saved = false;
+  await enqueue(treeId, "document save", async () => {
+    if (!active()) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+    // Retry missing tree creation without rewriting another device's existing tree/nodes.
+    const { error: treeError } = await supabase.from("trees").upsert(treeToRow(tree, uid), { onConflict: "id", ignoreDuplicates: true });
+    if (treeError) throw treeError;
+    if (!active()) return;
+    const { data, error } = await supabase.rpc("save_tree_document", {
+      p_tree_id: treeId, p_markdown: document.markdown, p_source_key: document.sourceKey,
+      p_created_at: new Date(document.createdAt).toISOString(), p_locale: document.locale,
+    });
+    if (error) throw error;
+    if (!Array.isArray(data) || !data[0]) throw new Error("Document save returned no row");
+    if (!active()) return;
+    saved = restoreTrailDocument(treeId, rowToDocument(data[0] as DocumentRow), uid);
+  });
+  return saved;
+}
 
 /** ツリー作成時: ツリー行のみ作る (ルートノードは生成完了時に保存される) */
 export function syncTreeCreated(treeId: string) {

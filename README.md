@@ -17,6 +17,7 @@ The core workflow is simple:
 3. Choose `What is it`, `Why is it`, or `Ask`.
 4. Sondeur creates a child node with a deeper explanation.
 5. The resulting exploration is stored as a tree and can be revisited or shared.
+6. Choose `Summarize` to turn the completed branches into a source-linked document, then copy or download it as Markdown.
 
 ## Current Plans
 
@@ -28,13 +29,15 @@ Pricing is USD-based.
 | Standard | $7 | 100/month |
 | Pro | $14 | 300/month |
 
-One generated root, follow-up, or free-form answer counts as one node.
+One generated root, follow-up, free-form answer, or document uses one generation from the allowance. Reopening or downloading an existing document does not generate again.
 
 ## Features
 
 - Span-based follow-up generation with `What`, `Why`, and free-form `Ask`.
 - Tree visualization using D3 force simulation.
 - Streaming OpenAI Responses API output with optional `web_search`.
+- Optional Parallel Fast search, with one bounded search request per explanation.
+- Documents synthesized from completed branches without additional web searches.
 - Magic-link auth and cross-device sync through Supabase.
 - Guest mode backed by `localStorage`.
 - Server-side monthly node quota enforcement.
@@ -90,6 +93,7 @@ npm run typecheck
 ```
 
 The app falls back to mock streaming when `OPENAI_API_KEY` is not set.
+Document generation instead returns a configuration error when this key is absent.
 
 ```bash
 OPENAI_API_KEY=sk-...
@@ -102,6 +106,37 @@ RSS suggestion generation keeps its existing `low` effort. `SONDEUR_MODEL`
 overrides both routes. For production, update any existing Vercel override and
 redeploy the verified production source; a repository default change alone does
 not change an existing deployment. See `docs/pricing-model.md` for rollout checks.
+
+### Parallel search trial
+
+Set `PARALLEL_API_KEY` as a server-side Vercel Secret and set
+`SONDEUR_SEARCH_PROVIDER=parallel` on the same deployment. With this switch,
+explanations use the GA Parallel Search API (`/v1/search`, `mode: fast`) followed
+by Luna without an OpenAI search tool. Requests time out after 15 seconds and
+pass at most 8,000 excerpt characters to the model. Search failures are surfaced;
+there is no automatic paid fallback. Omit the switch to retain OpenAI search.
+
+Use Preview first; changing environment variables requires a new deployment.
+Do not add either credential under a `NEXT_PUBLIC_` name.
+
+### Exploration documents
+
+Documents use completed, connected branches and preserve source URLs from the
+original explanations. They consume one existing generation allowance per
+creation/update, with no new search. Input is capped at 200 nodes and 120,000
+characters. An interrupted or incomplete response does not replace the previous
+document. Later exploration changes mark the saved snapshot as outdated.
+
+Signed-in snapshots are stored in the private `tree_documents` table and restored
+with their trees on sign-in, including on another device. Existing local/guest
+documents migrate on sign-in. Failed saves stay local and can be retried without
+another model call or generation charge. Newer cloud snapshots take precedence
+over stale retries. Documents are excluded from public tree shares; deleting a
+tree deletes its document through a foreign-key cascade. Guests can download
+Markdown or sign in to persist their documents. Apply the `tree_documents`
+migration before deploying this feature; `supabase/tests/tree_documents.sql`
+checks ownership, restore/update, stale retries, anonymous denial, and cascade
+in a rolled-back transaction.
 
 ## Supabase Setup
 
