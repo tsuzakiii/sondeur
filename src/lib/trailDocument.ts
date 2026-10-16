@@ -1,7 +1,7 @@
 import type { SondeurNode, Tree } from "./types";
 
 export interface DocumentNode { id: string; parentId: string | null; question: string; content: string }
-export interface TrailDocument { markdown: string; sourceKey: string; createdAt: number; locale: string }
+export interface TrailDocument { markdown: string; sourceKey: string; createdAt: number; locale: string; synced?: boolean }
 export const DOCUMENT_MAX_CHARS = 120000;
 export const DOCUMENT_MAX_NODES = 200;
 

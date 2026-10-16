@@ -32,7 +32,7 @@ export interface Tree {
   shared?: boolean;
   /** Local generation count for the guest allowance. */
   documentGenerations?: number;
-  /** Local-only document snapshot; never published by tree sharing. */
+  /** Private document snapshot, synced for signed-in owners. */
   document?: import("./trailDocument").TrailDocument;
 }
 

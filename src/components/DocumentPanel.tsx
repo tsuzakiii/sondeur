@@ -6,6 +6,7 @@ import { getStorageOwner, getState, saveTrailDocument } from "@/lib/store";
 import { DOCUMENT_MAX_CHARS, DOCUMENT_MAX_NODES, documentNodes, documentSourceKey } from "@/lib/trailDocument";
 import { GUEST_NODE_LIMIT } from "@/lib/planLimits";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { syncDocumentSaved } from "@/lib/sync";
 import type { Tree } from "@/lib/types";
 
 // Render only text, headings and http(s) links. Generated HTML is never executed.
@@ -26,11 +27,13 @@ export default function DocumentPanel({ tree, onClose }: { tree: Tree; onClose: 
   const controller = useRef<AbortController | null>(null);
   const trigger = useRef<HTMLElement | null>(null);
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [sourceKey, setSourceKey] = useState("");
   const nodes = useMemo(() => documentNodes(tree), [tree]);
   const document = tree.document;
+  const signedIn = getStorageOwner() !== "guest";
   const streaming = Object.values(tree.nodes).some(n => n.status === "streaming");
   const tooLarge = nodes.length > DOCUMENT_MAX_NODES || nodes.reduce((s,n) => s+n.content.length+n.question.length, 0) > DOCUMENT_MAX_CHARS;
   useEffect(() => {
@@ -61,10 +64,20 @@ export default function DocumentPanel({ tree, onClose }: { tree: Tree; onClose: 
       const result = await response.json();
       if (!response.ok) throw new Error(typeof result.error === "string" ? result.error : "document.failed");
       if (typeof result.markdown !== "string" || !result.markdown.trim()) throw new Error("document.failed");
-      if (!abort.signal.aborted) saveTrailDocument(tree.id, { markdown: result.markdown, sourceKey: key, createdAt: Date.now(), locale }, owner);
+      if (!abort.signal.aborted && saveTrailDocument(tree.id, { markdown: result.markdown, sourceKey: key, createdAt: Date.now(), locale }, owner) && owner !== "guest") {
+        setSaving(true);
+        const saved = await syncDocumentSaved(tree.id);
+        if (!saved && !abort.signal.aborted) setError("document.saveFailed");
+      }
     } catch (err) {
       if (!abort.signal.aborted) setError(err instanceof Error && /^document\.[a-zA-Z]+$/.test(err.message) ? err.message : "document.failed");
-    } finally { controller.current = null; if (!abort.signal.aborted) setBusy(false); }
+    } finally { controller.current = null; if (!abort.signal.aborted) { setBusy(false); setSaving(false); } }
+  }
+  async function retrySave() {
+    if (saving || busy) return;
+    setSaving(true); setError("");
+    try { if (!(await syncDocumentSaved(tree.id))) setError("document.saveFailed"); }
+    finally { setSaving(false); }
   }
   async function copy() {
     try { await navigator.clipboard.writeText(document!.markdown); setCopied(true); }
@@ -85,19 +98,20 @@ export default function DocumentPanel({ tree, onClose }: { tree: Tree; onClose: 
       </div>
       <div className="flex-1 overflow-y-auto px-6 py-5" aria-busy={busy}>
         {document ? <>
-          <p className="mb-3 text-xs text-slate-500">{t("document.saved")}</p>
+          <p className="mb-3 text-xs text-slate-500" role="status">{t(saving ? "document.saving" : document.synced ? "document.savedCloud" : signedIn ? "document.unsavedCloud" : "document.saved")}</p>
           {sourceKey && document.sourceKey !== sourceKey && <p className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{t("document.stale")}</p>}
           <DocumentText text={document.markdown} />
           <p className="mt-7 text-xs text-slate-500">{t("document.sourcesNote")}</p>
         </> : <p className="text-sm leading-7 text-slate-600">{t("document.intro")}</p>}
         {error && <p role="alert" className="mt-4 text-sm text-red-700">{t(error)}</p>}
-        {busy && <p role="status" className="mt-4 text-sm text-navy">{t("document.generating")}</p>}
+        {busy && !saving && <p role="status" className="mt-4 text-sm text-navy">{t("document.generating")}</p>}
       </div>
       <div className="border-t border-slate-200 px-5 py-4">
-        <p className="mb-3 text-xs text-slate-500">{t(streaming ? "document.busy" : tooLarge ? "document.tooLarge" : !nodes.length ? "document.empty" : "document.cost")}</p>
+        <p className="mb-3 text-xs text-slate-500">{t(streaming ? "document.busy" : tooLarge ? "document.tooLarge" : !nodes.length ? "document.empty" : signedIn ? "document.cost" : "document.guestCost")}</p>
         <div className="flex flex-wrap gap-2">
-          <button onClick={generate} disabled={busy || streaming || !nodes.length || tooLarge} className="rounded-xl bg-navy px-4 py-2 text-sm text-white disabled:opacity-40">{t(busy ? "document.generating" : document ? "document.regenerate" : "document.generate")}</button>
+          <button onClick={generate} disabled={busy || saving || streaming || !nodes.length || tooLarge} className="rounded-xl bg-navy px-4 py-2 text-sm text-white disabled:opacity-40">{t(saving ? "document.saving" : busy ? "document.generating" : document ? "document.regenerate" : "document.generate")}</button>
           {document && <>
+            {signedIn && !document.synced && !busy && <button onClick={retrySave} disabled={saving} className="neu-raised-sm rounded-xl px-4 py-2 text-sm text-navy disabled:opacity-40">{t("document.retrySave")}</button>}
             <button onClick={copy} className="neu-raised-sm rounded-xl px-4 py-2 text-sm text-navy">{t(copied ? "panel.copied" : "document.copy")}</button>
             <button onClick={download} className="neu-raised-sm rounded-xl px-4 py-2 text-sm text-navy">{t("document.download")}</button>
           </>}

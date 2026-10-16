@@ -127,10 +127,16 @@ creation/update, with no new search. Input is capped at 200 nodes and 120,000
 characters. An interrupted or incomplete response does not replace the previous
 document. Later exploration changes mark the saved snapshot as outdated.
 
-Snapshots are local to the device and account-owned tree store, survive a page
-reload, and are cleared on sign-out. They are not synced to Supabase or included
-in public tree shares. Download Markdown to retain a separate copy. No database
-migration is required for this version.
+Signed-in snapshots are stored in the private `tree_documents` table and restored
+with their trees on sign-in, including on another device. Existing local/guest
+documents migrate on sign-in. Failed saves stay local and can be retried without
+another model call or generation charge. Newer cloud snapshots take precedence
+over stale retries. Documents are excluded from public tree shares; deleting a
+tree deletes its document through a foreign-key cascade. Guests can download
+Markdown or sign in to persist their documents. Apply the `tree_documents`
+migration before deploying this feature; `supabase/tests/tree_documents.sql`
+checks ownership, restore/update, stale retries, anonymous denial, and cascade
+in a rolled-back transaction.
 
 ## Supabase Setup
 

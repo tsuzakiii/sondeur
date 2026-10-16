@@ -367,12 +367,22 @@ export function pathToNode(tree: Tree, nodeId: string): SondeurNode[] {
   return path;
 }
 
-/** Keep the result on this device, within the existing owner-isolated tree store. */
+/** Keep the result locally before attempting cloud sync. */
 export function saveTrailDocument(treeId: string, document: import("./trailDocument").TrailDocument, owner: string): boolean {
   load();
   const tree = state.trees[treeId];
   if (!tree || storageOwner !== owner) return false;
   state = { trees: { ...state.trees, [treeId]: { ...tree, document, documentGenerations: (tree.documentGenerations ?? 0) + 1 } } };
+  emit();
+  return true;
+}
+
+/** Accept a cloud snapshot without consuming another generation or crossing accounts. */
+export function restoreTrailDocument(treeId: string, document: import("./trailDocument").TrailDocument, owner: string): boolean {
+  load();
+  const tree = state.trees[treeId];
+  if (!tree || storageOwner !== owner || (tree.document && tree.document.createdAt > document.createdAt)) return false;
+  state = { trees: { ...state.trees, [treeId]: { ...tree, document: { ...document, synced: true } } } };
   emit();
   return true;
 }
