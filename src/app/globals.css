@@ -10,6 +10,14 @@
   --navy: #2f4a7c;
   --wine: #8e3a52;
   --gold: #b8912a;
+  --line: #d8dde8;
+  --surface: #f4f6fa;
+  --hover: #dde2ec;
+  --action: #2f4a7c;
+  --action-danger: #8e3a52;
+  --prose: #3a4458;
+  --node-core: #ffffff;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -18,6 +26,9 @@
   --color-navy: var(--navy);
   --color-wine: var(--wine);
   --color-gold: var(--gold);
+  --color-line: var(--line);
+  --color-surface: var(--surface);
+  --color-hover: var(--hover);
   --font-sans: var(--font-noto-sans-jp), var(--font-geist-sans), sans-serif;
   --font-mono: var(--font-geist-mono);
 }
@@ -84,7 +95,7 @@ body {
   font-size: 15.5px;
   line-height: 2;
   letter-spacing: 0.015em;
-  color: #3a4458;
+  color: var(--prose);
   text-wrap: pretty;
 }
 
@@ -154,3 +165,48 @@ body {
 *::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Palette tokens also cover SVG graph labels and existing reading surfaces. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #171d29;
+  --foreground: #e2e8f1;
+  --shadow-dark: #0e131c;
+  --shadow-light: #222c3d;
+  --navy: #a5c4ff;
+  --wine: #f0a9bf;
+  --gold: #e3c479;
+  --action: #35588e;
+  --action-danger: #963f5a;
+  --line: #354157;
+  --surface: #202938;
+  --hover: #29354a;
+  --prose: #d6dfef;
+  --node-core: #253248;
+  --color-slate-300: #7e8da6;
+  --color-slate-400: #94a3bc;
+  --color-slate-500: #abb8cd;
+  --color-slate-600: #c2cede;
+  --color-slate-700: #dce5f2;
+  --color-slate-200: #354157;
+  --color-red-700: #ffb4b4;
+  --color-amber-50: #342d1e;
+  --color-amber-800: #efd08e;
+}
+.bg-navy { background-color: var(--action); }
+.bg-wine { background-color: var(--action-danger); }
+:focus-visible { outline: 2px solid var(--navy); outline-offset: 4px; }
+.settings-card { border: 1px solid var(--line); background: var(--surface); border-radius: 1rem; padding: 1.5rem; }
+.settings-button { display: inline-flex; justify-content: center; align-items: center; gap: .5rem; border: 1px solid var(--line); border-radius: .65rem; padding: .65rem 1rem; font-size: .875rem; font-weight: 500; }
+.settings-button:hover { background: var(--hover); }
+.settings-button:disabled { opacity: .5; cursor: wait; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+.theme-preview { display: flex; height: 76px; overflow: hidden; border: 1px solid var(--line); border-radius: .5rem; background: #edf0f6; }
+.theme-preview > span:first-child { width: 28%; background: #d6deeb; border-right: 1px solid #c0cadb; }
+.theme-preview > span:last-child { margin: 14px 10px; width: 50%; border-top: 5px solid #8092b2; border-bottom: 5px solid #c1ccdc; }
+.theme-preview-dark { background: #171d29; }
+.theme-preview-dark > span:first-child { background: #263147; border-color: #354157; }
+.theme-preview-dark > span:last-child { border-color: #647b9e; }
+.theme-preview-system { background: linear-gradient(110deg, #edf0f6 50%, #171d29 50%); }

@@ -80,8 +80,8 @@ export default function SharedTreeView({ tree }: { tree: Tree }) {
         }`}
       >
         {node && (
-          <div className="relative flex h-full w-full flex-col border-l border-[#d8dde8] bg-background shadow-[-8px_0_24px_rgba(150,160,180,0.18)] max-md:rounded-t-2xl max-md:border-l-0 max-md:border-t max-md:shadow-[0_-8px_24px_rgba(150,160,180,0.18)]">
-            <div className="flex items-start justify-between gap-2 border-b border-[#d8dde8] px-5 py-3.5">
+          <div className="relative flex h-full w-full flex-col border-l border-line bg-background shadow-[-8px_0_24px_rgba(150,160,180,0.18)] max-md:rounded-t-2xl max-md:border-l-0 max-md:border-t max-md:shadow-[0_-8px_24px_rgba(150,160,180,0.18)]">
+            <div className="flex items-start justify-between gap-2 border-b border-line px-5 py-3.5">
               <div className="min-w-0">
                 <div
                   className={`text-xs font-semibold ${
@@ -126,7 +126,7 @@ export default function SharedTreeView({ tree }: { tree: Tree }) {
               </div>
             </div>
 
-            <div className="border-t border-[#d8dde8] px-5 py-3">
+            <div className="border-t border-line px-5 py-3">
               <Link href="/" className="text-[12px] text-navy transition-opacity hover:opacity-70">
                 Sondeur — Sound the depths of understanding
               </Link>

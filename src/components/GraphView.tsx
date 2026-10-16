@@ -33,9 +33,9 @@ interface SimLink extends SimulationLinkDatum<SimNode> {
 }
 
 // 白背景パレット: What=紺 / Why=ワインレッド / 自由質問=黄
-const EDGE_COLOR: Record<string, string> = { what: "#2f4a7c", why: "#8e3a52", ask: "#b8912a" };
+const EDGE_COLOR: Record<string, string> = { what: "var(--navy)", why: "var(--wine)", ask: "var(--gold)" };
 const EDGE_DASH: Record<string, string | null> = { what: null, why: "6 4", ask: "2 4" };
-const ROOT_COLOR = "#2f4a7c";
+const ROOT_COLOR = "var(--navy)";
 
 function nodeRadius(depth: number): number {
   // ルートは明確に大きく、どこから木が伸びているか一目でわかるように
@@ -163,7 +163,7 @@ export default function GraphView({
           .attr("class", "badge")
           .attr("text-anchor", "middle")
           .attr("dominant-baseline", "central")
-          .attr("fill", "#ffffff")
+          .attr("fill", "var(--node-core)")
           .attr("font-size", 10)
           .attr("font-weight", 700)
           .attr("pointer-events", "none");
@@ -377,9 +377,9 @@ export default function GraphView({
             100% { transform: scale(2.4); opacity: 0; }
           }
           text.label {
-            fill: #4a5568;
+            fill: var(--prose);
             paint-order: stroke;
-            stroke: rgba(232, 236, 243, 0.9);
+            stroke: var(--background);
             stroke-width: 3px;
             letter-spacing: 0.02em;
           }
@@ -388,16 +388,16 @@ export default function GraphView({
       {/* 凡例 — 色の意味づけ */}
       <div className="neu-raised-sm pointer-events-none absolute left-16 top-4 flex flex-col gap-1.5 rounded-xl px-3.5 py-2.5 text-[11px] text-slate-500">
         <div className="flex items-center gap-2">
-          <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="#2f4a7c" strokeWidth="2" strokeLinecap="round" /></svg>
-          <span><span className="font-semibold" style={{ color: "#2f4a7c" }}>What</span> — {t("graph.whatDesc")}</span>
+          <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--navy)" strokeWidth="2" strokeLinecap="round" /></svg>
+          <span><span className="font-semibold" style={{ color: "var(--navy)" }}>What</span> — {t("graph.whatDesc")}</span>
         </div>
         <div className="flex items-center gap-2">
-          <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="#8e3a52" strokeWidth="2" strokeLinecap="round" strokeDasharray="5 3" /></svg>
-          <span><span className="font-semibold" style={{ color: "#8e3a52" }}>Why</span> — {t("graph.whyDesc")}</span>
+          <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--wine)" strokeWidth="2" strokeLinecap="round" strokeDasharray="5 3" /></svg>
+          <span><span className="font-semibold" style={{ color: "var(--wine)" }}>Why</span> — {t("graph.whyDesc")}</span>
         </div>
         <div className="flex items-center gap-2">
-          <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="#b8912a" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 4" /></svg>
-          <span><span className="font-semibold" style={{ color: "#b8912a" }}>Ask</span> — {t("graph.askDesc")}</span>
+          <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 4" /></svg>
+          <span><span className="font-semibold" style={{ color: "var(--gold)" }}>Ask</span> — {t("graph.askDesc")}</span>
         </div>
       </div>
     </div>

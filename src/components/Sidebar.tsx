@@ -118,7 +118,7 @@ export default function Sidebar({
         className="fixed inset-0 z-40 bg-slate-900/15 backdrop-blur-[2px] md:hidden"
         onClick={onToggle}
       />
-      <div className="flex h-full w-[clamp(200px,15vw,340px)] shrink-0 flex-col border-r border-[#d8dde8] max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[min(85vw,320px)] max-md:bg-background max-md:shadow-[8px_0_24px_rgba(150,160,180,0.3)]">
+      <div className="flex h-full w-[clamp(200px,15vw,340px)] shrink-0 flex-col border-r border-line max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[min(85vw,320px)] max-md:bg-background max-md:shadow-[8px_0_24px_rgba(150,160,180,0.3)]">
       <div className="flex items-center justify-between px-4 py-3">
         <button
           onClick={onToggle}
@@ -144,7 +144,7 @@ export default function Sidebar({
         </button>
       </div>
 
-      <div className="mx-4 mb-1 border-b border-[#d8dde8]" />
+      <div className="mx-4 mb-1 border-b border-line" />
 
       <div className="px-3 py-2">
         <input
@@ -167,7 +167,7 @@ export default function Sidebar({
               onClick={() => {
                 onSelectNode(h.treeId, h.nodeId);
               }}
-              className="mb-1.5 cursor-pointer rounded-xl px-3 py-2 transition-colors hover:bg-[#dde2ec]"
+              className="mb-1.5 cursor-pointer rounded-xl px-3 py-2 transition-colors hover:bg-hover"
             >
               <div className="truncate text-[12px] font-medium text-slate-600">{h.label}</div>
               <div className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-400">{h.snippet}</div>
@@ -287,7 +287,7 @@ export default function Sidebar({
       </div>
       )}
 
-      <div className="mx-4 mb-1 border-b border-[#d8dde8]" />
+      <div className="mx-4 mb-1 border-b border-line" />
       <AuthFooter />
 
       {/* Delete confirmation — card extends right */}
