@@ -312,7 +312,7 @@ export default function ReadingPanel({
         )}
       </div>
 
-      <div className="reading-footer shrink-0 border-t border-line px-3 pt-2.5">
+      <div className="reading-footer shrink-0 border-t border-line px-3 pt-6.5">
         <div className="flex gap-2">
           <input
             value={nodeQuestion}
@@ -322,12 +322,12 @@ export default function ReadingPanel({
             }}
             disabled={node.status !== "done"}
             placeholder={t("panel.questionPlaceholder")}
-            className="neu-inset min-w-0 flex-1 rounded-xl px-3.5 py-1.5 text-sm text-slate-700 placeholder-slate-400 outline-none disabled:opacity-40"
+            className="neu-inset min-w-0 flex-1 rounded-xl px-3.5 py-3.5 text-sm text-slate-700 placeholder-slate-400 outline-none disabled:opacity-40"
           />
           <button
             onClick={fireNodeAsk}
             disabled={!nodeQuestion.trim() || node.status !== "done"}
-            className="shrink-0 rounded-xl bg-gold px-3.5 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-30"
+            className="shrink-0 rounded-xl bg-gold px-3.5 py-3.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-30"
           >
             {t("panel.questionSubmit")}
           </button>
