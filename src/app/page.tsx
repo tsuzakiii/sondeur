@@ -315,12 +315,12 @@ export default function Home() {
                       if (e.key === "Enter" && !e.nativeEvent.isComposing) launch(question);
                     }}
                     placeholder={t("home.placeholderActive")}
-                    className="neu-inset min-w-0 flex-1 rounded-xl px-4 py-1.5 text-sm text-slate-700 placeholder-slate-400 outline-none"
+                    className="neu-inset min-w-0 flex-1 rounded-xl px-4 py-3.5 text-sm text-slate-700 placeholder-slate-400 outline-none"
                   />
                   <button
                     onClick={() => launch(question)}
                     disabled={!question.trim()}
-                    className="shrink-0 rounded-xl bg-navy px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-30"
+                    className="shrink-0 rounded-xl bg-navy px-4 py-3.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-30"
                   >
                     {t("home.submit")}
                   </button>
@@ -364,12 +364,12 @@ export default function Home() {
                     if (e.key === "Enter" && !e.nativeEvent.isComposing) launch(question);
                   }}
                   placeholder={t("home.placeholderActive")}
-                  className="neu-inset min-w-0 flex-1 rounded-xl px-4 py-1.5 text-sm text-slate-700 placeholder-slate-400 outline-none"
+                  className="neu-inset min-w-0 flex-1 rounded-xl px-4 py-3.5 text-sm text-slate-700 placeholder-slate-400 outline-none"
                 />
                 <button
                   onClick={() => launch(question)}
                   disabled={!question.trim()}
-                  className="shrink-0 rounded-xl bg-navy px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-30"
+                  className="shrink-0 rounded-xl bg-navy px-4 py-3.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-30"
                 >
                   {t("home.submit")}
                 </button>
@@ -404,12 +404,12 @@ export default function Home() {
                     if (e.key === "Enter" && !e.nativeEvent.isComposing) launch(question);
                   }}
                   placeholder={t("home.placeholder")}
-                  className="neu-inset min-w-0 flex-1 rounded-xl px-4 py-2.5 text-[15px] text-slate-700 placeholder-slate-400 outline-none"
+                  className="neu-inset min-w-0 flex-1 rounded-xl px-4 py-4.5 text-[15px] text-slate-700 placeholder-slate-400 outline-none"
                 />
                 <button
                   onClick={() => launch(question)}
                   disabled={!question.trim()}
-                  className="neu-raised-sm shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold text-navy transition-opacity enabled:active:neu-inset disabled:opacity-30"
+                  className="neu-raised-sm shrink-0 rounded-xl px-5 py-4.5 text-sm font-semibold text-navy transition-opacity enabled:active:neu-inset disabled:opacity-30"
                 >
                   {t("home.submit")}
                 </button>
