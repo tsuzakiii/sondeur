@@ -19,6 +19,7 @@ const SIGNED_OUT: AuthInfo = { kind: "signedOut" };
 let authInfo: AuthInfo = SIGNED_OUT;
 const listeners = new Set<() => void>();
 let initialized = false;
+let authReady = false;
 
 function emit() {
   for (const l of listeners) l();
@@ -27,7 +28,7 @@ function emit() {
 export function initAuth() {
   if (initialized) return;
   const supabase = getSupabase();
-  if (!supabase) return;
+  if (!supabase) { authReady = true; emit(); return; }
   initialized = true;
   supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
@@ -61,6 +62,7 @@ export function initAuth() {
         stopSync();
       }
     }
+    if (!authReady) { authReady = true; emit(); }
   });
 }
 
@@ -87,4 +89,13 @@ export async function signInWithEmail(email: string): Promise<string | null> {
 
 export function signOut() {
   void getSupabase()?.auth.signOut();
+}
+
+/** Wait for the initial auth event before treating a direct settings visit as a guest. */
+export function useAuthReady(): boolean {
+  return useSyncExternalStore(
+    (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
+    () => authReady,
+    () => false
+  );
 }
