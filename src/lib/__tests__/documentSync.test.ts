@@ -55,6 +55,7 @@ it("keeps an unsaved document and retries only persistence after a network failu
   expect(await syncDocumentSaved("t")).toBe(false);
   expect(getState().trees.t.document).toEqual(doc());
   expect(await syncDocumentSaved("t")).toBe(true);
+  expect(upsert).toHaveBeenLastCalledWith(expect.objectContaining({ id: "t", user_id: "user-a" }), { onConflict: "id", ignoreDuplicates: true });
   expect(getState().trees.t.document?.synced).toBe(true);
   expect(getState().trees.t.documentGenerations).toBe(1);
   log.mockRestore();

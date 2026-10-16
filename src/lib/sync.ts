@@ -253,8 +253,9 @@ export async function syncDocumentSaved(treeId: string): Promise<boolean> {
     if (!active()) return;
     const supabase = getSupabase();
     if (!supabase) return;
-    // A previous tree/node save may have failed; preserve the exploration before its document.
-    await upsertTreeWithNodes(tree, uid);
+    // Retry missing tree creation without rewriting another device's existing tree/nodes.
+    const { error: treeError } = await supabase.from("trees").upsert(treeToRow(tree, uid), { onConflict: "id", ignoreDuplicates: true });
+    if (treeError) throw treeError;
     if (!active()) return;
     const { data, error } = await supabase.rpc("save_tree_document", {
       p_tree_id: treeId, p_markdown: document.markdown, p_source_key: document.sourceKey,
