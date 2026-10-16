@@ -1,8 +1,11 @@
 "use client";
 
 import { I18nProvider } from "@/lib/i18n";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { initAuth } from "@/lib/authState";
+import { ThemeProvider } from "@/lib/theme";
 
 export default function Providers({ children }: { children: ReactNode }) {
-  return <I18nProvider>{children}</I18nProvider>;
+  useEffect(() => { initAuth(); }, []);
+  return <ThemeProvider><I18nProvider>{children}</I18nProvider></ThemeProvider>;
 }

@@ -41,7 +41,7 @@ const ROWS: { label: string; value: string }[] = [
   {
     label: "解約・キャンセル",
     value:
-      "解約手続きは、アカウントメニューの「プラン管理」からいつでも行えます。解約後も当該請求期間の終了までご利用いただけます。デジタルサービスの性質上、日割りその他の返金はいたしません",
+      "解約手続きは、設定の「プランとお支払い」からいつでも行えます。解約後も当該請求期間の終了までご利用いただけます。デジタルサービスの性質上、日割りその他の返金はいたしません",
   },
   { label: "動作環境", value: "モダンブラウザ（Chrome / Safari / Edge / Firefox）の最新版" },
   { label: "特別条件", value: "有料プランのお申し込み前に、無料プランで機能をお試しいただけます" },
@@ -52,7 +52,7 @@ export default function TokushohoPage() {
     <LegalShell title="特定商取引法に基づく表記">
       <dl>
         {ROWS.map((r) => (
-          <div key={r.label} className="border-b border-[#d8dde8] py-3 first:pt-0 last:border-b-0 sm:flex sm:gap-4">
+          <div key={r.label} className="border-b border-line py-3 first:pt-0 last:border-b-0 sm:flex sm:gap-4">
             <dt className="shrink-0 font-medium text-slate-700 sm:w-44">{r.label}</dt>
             <dd className="mt-0.5 min-w-0 break-words sm:mt-0">{r.value}</dd>
           </div>

@@ -8,7 +8,7 @@ import ReadingPanel from "@/components/ReadingPanel";
 import { deleteTree, toggleCollapsed, useTreeStore } from "@/lib/store";
 import { expandAsk, expandSpan, startTree } from "@/lib/expand";
 import { syncCollapsed, syncTreeDeleted } from "@/lib/sync";
-import { initAuth, useAuthInfo } from "@/lib/authState";
+import { useAuthInfo } from "@/lib/authState";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { GUEST_NODE_LIMIT } from "@/lib/planLimits";
 import { useI18n } from "@/lib/i18n";
@@ -59,9 +59,6 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [authError]);
   const mounted = useClientMounted();
-  useEffect(() => {
-    initAuth();
-  }, []);
 
   useEffect(() => {
     if (!billingNotice) return;

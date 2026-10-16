@@ -137,8 +137,8 @@ export async function POST(request: Request) {
           ? { customer: fresh.stripe_customer_id as string }
           : { customer_email: auth.user.email ?? undefined }),
         subscription_data: { metadata: { user_id: auth.user.id } },
-        success_url: `${origin}/?billing=success`,
-        cancel_url: `${origin}/?billing=cancel`,
+        success_url: `${origin}/settings/billing?billing=success`,
+        cancel_url: `${origin}/settings/billing?billing=cancel`,
       },
       { idempotencyKey: checkoutIdempotencyKey(auth.user.id, body.plan, price, hasStripe) }
     );

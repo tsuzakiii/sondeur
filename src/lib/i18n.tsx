@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { getSupabase } from "./supabase/client";
 import { useAuthInfo } from "./authState";
 
@@ -14,6 +14,54 @@ export const LOCALES: { code: Locale; label: string; flag: string }[] = [
 type Dict = Record<string, string>;
 
 const en: Dict = {
+  "settings.title": "Settings",
+  "settings.general": "General",
+  "settings.billing": "Plan & billing",
+  "settings.account": "Account",
+  "settings.back": "Back to exploration",
+  "settings.guest": "Guest",
+  "settings.generalIntro": "Make Sondeur feel at home.",
+  "settings.language": "Language",
+  "settings.languageHelp": "Used for menus and new explanations. Saved content stays in its original language.",
+  "settings.theme": "Color theme",
+  "settings.themeHelp": "Choose how Sondeur looks on this browser.",
+  "settings.system": "System",
+  "settings.light": "Light",
+  "settings.dark": "Dark",
+  "settings.autoSave": "Changes are saved automatically.",
+  "settings.billingIntro": "Your plan, usage, and payment details in one place.",
+  "settings.currentPlan": "Current plan",
+  "settings.usage": "Generations this month",
+  "settings.usageHelp": "Explanations and document creation each use one generation. Reopening saved content is free. Usage resets at the start of each UTC calendar month.",
+  "settings.perMonth": "/ month",
+  "settings.allowance": "{count} generations / month",
+  "settings.manage": "Manage subscription",
+  "settings.payment": "Payment methods & invoices",
+  "settings.cancel": "Cancel subscription",
+  "settings.portalHelp": "Manage your renewal date, payment details, and cancellation in Stripe. Opening it does not change your subscription.",
+  "settings.recoverHelp": "A billing account already exists. Check your payment or subscription status in Stripe before starting another subscription.",
+  "settings.choose": "Choose {plan}",
+  "settings.loading": "Loading…",
+  "settings.opening": "Opening…",
+  "settings.retry": "Try again",
+  "settings.loadFailed": "Could not load your plan. Try again before managing your subscription.",
+  "settings.billingFailed": "Could not open billing. Please try again.",
+  "settings.guestBilling": "Sign in to see your plan and manage billing.",
+  "settings.trial": "Trial usage: {used} / {limit}",
+  "settings.accountIntro": "Your sign-in and saved explorations.",
+  "settings.email": "Email address",
+  "settings.signedIn": "Signed in",
+  "settings.savedHelp": "Your explorations and summary documents are saved to your account.",
+  "settings.guestHelp": "Sign in with an email link to keep your explorations and documents across devices. Your guest work will carry over.",
+  "settings.sending": "Sending…",
+  "settings.logoutHelp": "Sign out of this browser. Your saved account data will remain.",
+  "settings.logoutFailed": "Could not sign out. Please try again.",
+  "settings.deleteTitle": "Delete account",
+  "settings.deleteHelp": "To request account and data deletion, contact us from your registered email address. You can cancel a paid subscription under Plan & billing.",
+  "settings.deleteRequest": "Request deletion by email",
+  "settings.support": "Help & information",
+  "settings.loginUnavailable": "Sign-in is currently unavailable. Please try again later.",
+
   "document.action": "Summarize",
   "document.open": "Document",
   "document.title": "Your exploration, as a document",
@@ -48,7 +96,7 @@ const en: Dict = {
   "home.submit": "Explore",
   "home.guestBlocked": "You've used all {limit} trial nodes.",
   "home.guestBlockedCta": "Sign in (free) to continue exploring. Your trails are preserved.",
-  "home.guestBlockedHint": "Sign in from the bottom-left of the sidebar (email only)",
+  "home.guestBlockedHint": "Open Account in Settings to sign in with your email.",
   "home.close": "Close",
   "home.hint": "{what} and {why}, as deep as you like.",
 
@@ -147,6 +195,54 @@ const en: Dict = {
 };
 
 const ja: Dict = {
+  "settings.title": "設定",
+  "settings.general": "一般",
+  "settings.billing": "プランとお支払い",
+  "settings.account": "アカウント",
+  "settings.back": "探索に戻る",
+  "settings.guest": "ゲスト",
+  "settings.generalIntro": "使いやすい表示に整えましょう。",
+  "settings.language": "言語",
+  "settings.languageHelp": "画面と新しく生成する説明に使います。保存済みの内容は元の言語のままです。",
+  "settings.theme": "カラーテーマ",
+  "settings.themeHelp": "このブラウザでの表示を選べます。",
+  "settings.system": "端末に合わせる",
+  "settings.light": "ライト",
+  "settings.dark": "ダーク",
+  "settings.autoSave": "変更は自動で保存されます。",
+  "settings.billingIntro": "プラン、利用状況、お支払いをまとめて確認できます。",
+  "settings.currentPlan": "現在のプラン",
+  "settings.usage": "今月の生成回数",
+  "settings.usageHelp": "説明やまとめ文書の作成で1回分を使います。保存済みの内容を開くときは消費しません。利用枠は毎月1日（UTC）にリセットされます。",
+  "settings.perMonth": "／月",
+  "settings.allowance": "月{count}回の生成",
+  "settings.manage": "プランを管理",
+  "settings.payment": "支払い方法・請求書",
+  "settings.cancel": "サブスクリプションを解約",
+  "settings.portalHelp": "更新日、お支払い情報、解約手続きはStripeの管理画面で確認できます。開くだけでは契約は変更されません。",
+  "settings.recoverHelp": "既存のお支払い情報があります。Stripeでお支払いや契約の状況を確認してください。",
+  "settings.choose": "{plan}を選ぶ",
+  "settings.loading": "読み込み中…",
+  "settings.opening": "開いています…",
+  "settings.retry": "再試行",
+  "settings.loadFailed": "プランを取得できませんでした。再試行してください。",
+  "settings.billingFailed": "お支払い画面を開けませんでした。もう一度お試しください。",
+  "settings.guestBilling": "ログインするとプランやお支払いを管理できます。",
+  "settings.trial": "お試し利用：{used}／{limit}回",
+  "settings.accountIntro": "ログイン情報と保存した探索について。",
+  "settings.email": "メールアドレス",
+  "settings.signedIn": "ログイン中",
+  "settings.savedHelp": "探索とまとめ文書はアカウントに保存されます。",
+  "settings.guestHelp": "メールのリンクでログインすると、探索とまとめ文書を別の端末でも開けます。ゲストで作成した内容も引き継がれます。",
+  "settings.sending": "送信中…",
+  "settings.logoutHelp": "このブラウザからログアウトします。アカウントに保存したデータは残ります。",
+  "settings.logoutFailed": "ログアウトできませんでした。もう一度お試しください。",
+  "settings.deleteTitle": "アカウントの削除",
+  "settings.deleteHelp": "アカウントとデータの削除は、登録したメールアドレスからご依頼ください。有料プランの解約は「プランとお支払い」から行えます。",
+  "settings.deleteRequest": "メールで削除を依頼",
+  "settings.support": "ヘルプ・サービス情報",
+  "settings.loginUnavailable": "現在ログインを利用できません。時間をおいてお試しください。",
+
   "document.action": "まとめる",
   "document.open": "ドキュメント",
   "document.title": "探索をドキュメントにまとめる",
@@ -181,7 +277,7 @@ const ja: Dict = {
   "home.submit": "測深",
   "home.guestBlocked": "お試し枠（{limit}ノード）を使い切りました。",
   "home.guestBlockedCta": "ログイン（無料）すると続きから探索できます。データはそのまま引き継がれます。",
-  "home.guestBlockedHint": "サイドバー左下からログイン（メールアドレスのみ）",
+  "home.guestBlockedHint": "設定の「アカウント」からログインできます（メールアドレスのみ）",
   "home.close": "閉じる",
   "home.hint": "{what} と {why}、好きなだけ深く。",
 
@@ -295,11 +391,13 @@ const STORAGE_KEY = "sondeur.locale";
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleRaw] = useState<Locale>("en");
   const auth = useAuthInfo();
+  const languageRevision = useRef(0);
 
   // Read stored locale on mount (avoids SSR hydration mismatch)
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const stored = localStorage.getItem(STORAGE_KEY) as Locale | null;
+      let stored: string | null = null;
+      try { stored = localStorage.getItem(STORAGE_KEY); } catch {}
       if (stored === "en" || stored === "ja") {
         setLocaleRaw(stored);
         document.documentElement.lang = stored;
@@ -312,23 +410,28 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     if (auth.kind !== "signedIn") return;
     const supabase = getSupabase();
     if (!supabase) return;
+    let cancelled = false;
+    const revision = languageRevision.current;
     supabase
       .from("profiles")
       .select("locale")
       .single()
       .then(({ data }) => {
+        if (cancelled || revision !== languageRevision.current) return;
         if (data?.locale && (data.locale === "en" || data.locale === "ja")) {
           setLocaleRaw(data.locale);
-          localStorage.setItem(STORAGE_KEY, data.locale);
+          try { localStorage.setItem(STORAGE_KEY, data.locale); } catch {}
           document.documentElement.lang = data.locale;
         }
       });
+    return () => { cancelled = true; };
   }, [auth]);
 
   const setLocale = useCallback(
     (l: Locale) => {
+      languageRevision.current += 1;
       setLocaleRaw(l);
-      localStorage.setItem(STORAGE_KEY, l);
+      try { localStorage.setItem(STORAGE_KEY, l); } catch {}
       document.documentElement.lang = l;
       const supabase = getSupabase();
       if (supabase && auth.kind === "signedIn") {
@@ -369,6 +472,7 @@ export function useLocale(): [Locale, (l: Locale) => void] {
 
 export function getCurrentLocale(): Locale {
   if (typeof window === "undefined") return "en";
-  const v = localStorage.getItem(STORAGE_KEY);
-  return v === "en" || v === "ja" ? v : "en";
+  const displayed = document.documentElement.lang;
+  if (displayed === "en" || displayed === "ja") return displayed;
+  try { return localStorage.getItem(STORAGE_KEY) === "ja" ? "ja" : "en"; } catch { return "en"; }
 }
