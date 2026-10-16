@@ -393,7 +393,7 @@ export default function Home() {
                 </div>
               </div>
               <div
-                className="neu-raised fade-up flex w-[min(36rem,85vw)] gap-2 rounded-2xl p-2"
+                className="fade-up flex w-[min(36rem,85vw)] gap-3 rounded-2xl p-2"
                 style={{ animationDelay: "0.2s" }}
               >
                 <input
@@ -409,7 +409,7 @@ export default function Home() {
                 <button
                   onClick={() => launch(question)}
                   disabled={!question.trim()}
-                  className="shrink-0 rounded-xl bg-navy px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-30"
+                  className="neu-raised-sm shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold text-navy transition-opacity enabled:active:neu-inset disabled:opacity-30"
                 >
                   {t("home.submit")}
                 </button>

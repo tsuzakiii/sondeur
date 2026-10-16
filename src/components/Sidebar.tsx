@@ -118,11 +118,11 @@ export default function Sidebar({
         className="fixed inset-0 z-40 bg-slate-900/15 backdrop-blur-[2px] md:hidden"
         onClick={onToggle}
       />
-      <div className="flex h-full w-[clamp(200px,15vw,340px)] shrink-0 flex-col border-r border-line max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[min(85vw,320px)] max-md:bg-background max-md:shadow-[8px_0_24px_rgba(150,160,180,0.3)]">
+      <div className="navigation-surface flex h-full w-[clamp(200px,15vw,340px)] shrink-0 flex-col max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[min(85vw,320px)] max-md:shadow-xl">
       <div className="flex items-center justify-between px-4 py-3">
         <button
           onClick={onToggle}
-          className="rounded px-1.5 py-0.5 text-slate-400 transition-colors hover:text-navy"
+          className="rounded px-1.5 py-0.5 text-rail-muted transition-colors hover:text-rail-text"
           title={t("sidebar.close")}
         >
           ≡
@@ -132,19 +132,19 @@ export default function Sidebar({
           className="flex items-center gap-1.5 rounded px-1 transition-opacity hover:opacity-70"
           title={t("sidebar.home")}
         >
-          <span className="inline-block h-2 w-2 rounded-full bg-navy" />
-          <span className="text-[clamp(14px,1vw,18px)] font-bold tracking-wider text-slate-600">Sondeur</span>
+          <span className="inline-block h-2 w-2 rounded-full bg-rail-text" />
+          <span className="text-[clamp(14px,1vw,18px)] font-bold tracking-wider text-rail-text">Sondeur</span>
         </button>
         <button
           onClick={onNewNote}
-          className="rounded px-1.5 py-0.5 text-lg leading-none text-slate-400 transition-colors hover:text-navy"
+          className="rounded px-1.5 py-0.5 text-lg leading-none text-rail-muted transition-colors hover:text-rail-text"
           title={t("sidebar.new")}
         >
           ＋
         </button>
       </div>
 
-      <div className="mx-4 mb-1 border-b border-line" />
+      <div className="mx-4 mb-1 border-b border-rail-line" />
 
       <div className="px-3 py-2">
         <input
@@ -152,14 +152,14 @@ export default function Sidebar({
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Escape" && setQuery("")}
           placeholder={t("sidebar.search")}
-          className="neu-inset w-full rounded-lg px-3 py-1.5 text-[12px] text-slate-700 placeholder-slate-400 outline-none"
+          className="rail-search w-full rounded-lg px-3 py-1.5 text-[12px] text-rail-text placeholder-rail-muted outline-none"
         />
       </div>
 
       {hits !== null ? (
         <div className="flex-1 overflow-y-auto px-2 py-1.5">
           {hits.length === 0 && (
-            <div className="px-3 py-6 text-xs text-slate-400">{t("sidebar.noResults", { query })}</div>
+            <div className="px-3 py-6 text-xs text-rail-muted">{t("sidebar.noResults", { query })}</div>
           )}
           {hits.map((h) => (
             <div
@@ -167,18 +167,18 @@ export default function Sidebar({
               onClick={() => {
                 onSelectNode(h.treeId, h.nodeId);
               }}
-              className="mb-1.5 cursor-pointer rounded-xl px-3 py-2 transition-colors hover:bg-hover"
+              className="mb-1.5 cursor-pointer rounded-xl px-3 py-2 transition-colors hover:bg-rail-hover"
             >
-              <div className="truncate text-[12px] font-medium text-slate-600">{h.label}</div>
-              <div className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-400">{h.snippet}</div>
-              <div className="mt-0.5 truncate text-[10px] text-slate-300">{h.treeTitle}</div>
+              <div className="truncate text-[12px] font-medium text-rail-text">{h.label}</div>
+              <div className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-rail-muted">{h.snippet}</div>
+              <div className="mt-0.5 truncate text-[10px] text-rail-muted">{h.treeTitle}</div>
             </div>
           ))}
         </div>
       ) : (
       <div className="flex-1 overflow-y-auto px-2 py-1.5">
         {trees.length === 0 && (
-          <div className="px-3 py-8 text-xs leading-6 text-slate-400">
+          <div className="px-3 py-8 text-xs leading-6 text-rail-muted">
             {t("sidebar.empty")}
             <br />
             {t("sidebar.emptyHint")}
@@ -191,14 +191,13 @@ export default function Sidebar({
             <div
               key={tr.id}
               data-tree-item
+              data-active={active}
               onClick={() => onSelectTree(tr.id)}
-              className={`group mb-1.5 cursor-pointer rounded-xl px-3 py-2 ${
-                active ? "neu-inset" : "hover:neu-flat"
-              }`}
+              className="navigation-item group mb-1.5 cursor-pointer rounded-lg px-3 py-2.5"
             >
               <div className="flex items-center justify-between gap-1">
                 <span
-                  className={`truncate text-[clamp(13px,0.95vw,17px)] ${active ? "font-medium text-navy" : "text-slate-500 group-hover:text-slate-700"}`}
+                  className={`truncate text-[clamp(13px,0.95vw,17px)] ${active ? "font-medium text-rail-text" : "text-rail-muted group-hover:text-rail-text"}`}
                   title={tr.title}
                 >
                   {tr.title}
@@ -219,13 +218,13 @@ export default function Sidebar({
                       requestAnimationFrame(() => requestAnimationFrame(() => setDeleteExpanded(true)));
                     }
                   }}
-                  className="invisible flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-400 hover:text-wine group-hover:visible"
+                  className="invisible flex h-5 w-5 shrink-0 items-center justify-center rounded text-rail-muted hover:text-rail-danger group-hover:visible"
                   title={t("sidebar.delete")}
                 >
                   <span className="text-sm leading-none">✕</span>
                 </button>
               </div>
-              <div className="mt-0.5 flex items-center gap-2 text-[clamp(11px,0.75vw,13px)] text-slate-400">
+              <div className="mt-0.5 flex items-center gap-2 text-[clamp(11px,0.75vw,13px)] text-rail-muted">
                 <span>{relativeTime(tr.updatedAt)}</span>
                 <span>·</span>
                 <span>{t(nodeCount === 1 ? "sidebar.node" : "sidebar.nodes", { count: nodeCount })}</span>
@@ -262,8 +261,8 @@ export default function Sidebar({
                   }}
                   className={`ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors ${
                     tr.shared
-                      ? "text-navy hover:text-wine"
-                      : "invisible text-slate-400 hover:text-navy group-hover:visible"
+                      ? "text-rail-text hover:text-rail-danger"
+                      : "invisible text-rail-muted hover:text-rail-text group-hover:visible"
                   }`}
                   title={tr.shared ? t("sidebar.unshare") : t("sidebar.share")}
                 >
@@ -271,7 +270,7 @@ export default function Sidebar({
                     shareToast.ok ? (
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                     ) : (
-                      <span className="text-sm leading-none text-wine">✕</span>
+                      <span className="text-sm leading-none text-rail-danger">✕</span>
                     )
                   ) : tr.shared ? (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
@@ -287,7 +286,7 @@ export default function Sidebar({
       </div>
       )}
 
-      <div className="mx-4 mb-1 border-b border-line" />
+      <div className="mx-4 mb-1 border-b border-rail-line" />
       <AuthFooter />
 
       {/* Delete confirmation — card extends right */}
@@ -301,9 +300,7 @@ export default function Sidebar({
             }}
           />
           <div
-            className={`fixed z-50 overflow-hidden rounded-xl px-3 py-2 ${
-              deleteTarget.active ? "neu-inset" : "neu-raised-sm"
-            }`}
+            className="rail-confirm fixed z-50 overflow-hidden rounded-lg px-3 py-2"
             style={{
               top: deleteRect.top,
               left: deleteRect.left,
@@ -314,13 +311,13 @@ export default function Sidebar({
           >
             <div
               className={`truncate text-[clamp(13px,0.95vw,17px)] ${
-                deleteTarget.active ? "font-medium text-navy" : "text-slate-500"
+                deleteTarget.active ? "font-medium text-rail-text" : "text-rail-muted"
               }`}
               style={{ width: deleteRect.width - 24 }}
             >
               {deleteTarget.title}
             </div>
-            <div className="mt-0.5 flex items-center gap-2 text-[clamp(11px,0.75vw,13px)] text-slate-400">
+            <div className="mt-0.5 flex items-center gap-2 text-[clamp(11px,0.75vw,13px)] text-rail-muted">
               <span>{deleteTarget.time}</span>
               <span>·</span>
               <span>{deleteTarget.nodeText}</span>
