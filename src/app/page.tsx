@@ -289,7 +289,7 @@ export default function Home() {
         <DocumentPanel key={documentTreeId} tree={trees[documentTreeId]} onClose={() => setDocumentTreeId(null)} />
       )}
       <div className="flex h-full min-w-0 flex-1">
-        <div className="relative h-full min-w-0 flex-1">
+        <div className={`relative h-full min-w-0 flex-1 ${blankMode && !tree ? "graph-canvas" : ""}`}>
           {tree ? (
             <>
               <button
@@ -333,23 +333,23 @@ export default function Home() {
                 <svg className="ring-pop" width="90" height="90">
                   <circle
                     cx="45" cy="45" r="41"
-                    fill="none" stroke="#2f4a7c" strokeWidth="2.5" strokeOpacity="0.9"
+                    fill="none" stroke="var(--navy)" strokeWidth="2.5" strokeOpacity="0.9"
                   />
                 </svg>
               </div>
               {/* What / Why / Ask legend */}
               <div className="neu-raised-sm pointer-events-none absolute left-16 top-4 flex flex-col gap-1.5 rounded-xl px-3.5 py-2.5 text-[11px] text-slate-500 fade-up">
                 <div className="flex items-center gap-2">
-                  <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="#2f4a7c" strokeWidth="2" strokeLinecap="round" /></svg>
-                  <span><span className="font-semibold" style={{ color: "#2f4a7c" }}>What</span> — {t("graph.whatDesc")}</span>
+                  <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--navy)" strokeWidth="2" strokeLinecap="round" /></svg>
+                  <span><span className="font-semibold" style={{ color: "var(--navy)" }}>What</span> — {t("graph.whatDesc")}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="#8e3a52" strokeWidth="2" strokeLinecap="round" strokeDasharray="5 3" /></svg>
-                  <span><span className="font-semibold" style={{ color: "#8e3a52" }}>Why</span> — {t("graph.whyDesc")}</span>
+                  <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--wine)" strokeWidth="2" strokeLinecap="round" strokeDasharray="5 3" /></svg>
+                  <span><span className="font-semibold" style={{ color: "var(--wine)" }}>Why</span> — {t("graph.whyDesc")}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="#b8912a" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 4" /></svg>
-                  <span><span className="font-semibold" style={{ color: "#b8912a" }}>Ask</span> — {t("graph.askDesc")}</span>
+                  <svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 4" /></svg>
+                  <span><span className="font-semibold" style={{ color: "var(--gold)" }}>Ask</span> — {t("graph.askDesc")}</span>
                 </div>
               </div>
               {/* pointer-events-none 必須: この帯は全幅で、左下の AuthFooter に被さって

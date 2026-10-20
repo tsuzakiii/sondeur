@@ -181,33 +181,52 @@ body {
 /* Palette tokens also cover SVG graph labels and existing reading surfaces. */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --background: #171d29;
-  --foreground: #e2e8f1;
-  --shadow-dark: #0e131c;
-  --shadow-light: #222c3d;
-  --navy: #a5c4ff;
-  --wine: #f0a9bf;
-  --gold: #e3c479;
-  --action: #35588e;
-  --action-danger: #963f5a;
-  --line: #354157;
-  --surface: #202938;
-  --hover: #29354a;
-  --prose: #d6dfef;
-  --node-core: #253248;
-  --rail: #101c2e;
-  --rail-hover: #21334d;
-  --rail-selected: #2c4260;
-  --color-slate-300: #7e8da6;
-  --color-slate-400: #94a3bc;
-  --color-slate-500: #abb8cd;
-  --color-slate-600: #c2cede;
-  --color-slate-700: #dce5f2;
-  --color-slate-200: #354157;
-  --color-red-700: #ffb4b4;
-  --color-amber-50: #342d1e;
-  --color-amber-800: #efd08e;
+  --background: #202326;
+  --foreground: #e2e3de;
+  --shadow-dark: #16191b;
+  --shadow-light: #2c3034;
+  --navy: #91b9cf;
+  --wine: #cd9587;
+  --gold: #d0b36b;
+  --action: #3c6077;
+  --action-danger: #8c4942;
+  --line: #3b4247;
+  --surface: #292d31;
+  --hover: #343a3f;
+  --prose: #dedfdc;
+  --node-core: #e2e3de;
+  --rail: #171e24;
+  --rail-text: #e2e3de;
+  --rail-muted: #b0bbc2;
+  --rail-hover: #26313a;
+  --rail-selected: #35444f;
+  --rail-line: #43525d;
+  --rail-danger: #e6afa2;
+  --graph-grid: #3e4143;
+  --color-slate-300: #929b9e;
+  --color-slate-400: #a3acae;
+  --color-slate-500: #b5b9b9;
+  --color-slate-600: #c9cdcb;
+  --color-slate-700: #e2e3de;
+  --color-slate-200: #3b4247;
+  --color-red-700: #e9aaa3;
+  --color-amber-50: #342e22;
+  --color-amber-800: #ddc58c;
 }
+/* Dark nodes use color on their outlines and a quieter, opaque interior. */
+:root[data-theme="dark"] .graph-canvas {
+  background-image: radial-gradient(circle, var(--graph-grid) .85px, transparent 1px);
+  background-size: 24px 24px;
+}
+:root[data-theme="dark"] .graph-canvas circle.body {
+  fill: color-mix(in srgb, var(--graph-node-accent) 30%, var(--background));
+  stroke: var(--graph-node-accent);
+  stroke-width: 2.25px;
+}
+:root[data-theme="dark"] .graph-canvas g.node[data-selected="true"] circle.ring { stroke: var(--foreground); }
+:root[data-theme="dark"] .graph-canvas line.edge { stroke-opacity: .62; }
+:root[data-theme="dark"] .bg-gold { background-color: #80611f; }
+
 .bg-navy { background-color: var(--action); }
 .bg-wine { background-color: var(--action-danger); }
 :focus-visible { outline: 2px solid var(--navy); outline-offset: 4px; }
@@ -222,10 +241,10 @@ body {
 .theme-preview { display: flex; height: 76px; overflow: hidden; border: 1px solid var(--line); border-radius: .5rem; background: #edf0f6; }
 .theme-preview > span:first-child { width: 28%; background: #223653; border-right: 1px solid #455c79; }
 .theme-preview > span:last-child { margin: 14px 10px; width: 50%; border-top: 5px solid #8092b2; border-bottom: 5px solid #c1ccdc; }
-.theme-preview-dark { background: #171d29; }
-.theme-preview-dark > span:first-child { background: #101c2e; border-color: #354157; }
-.theme-preview-dark > span:last-child { border-color: #647b9e; }
-.theme-preview-system { background: linear-gradient(110deg, #edf0f6 50%, #171d29 50%); }
+.theme-preview-dark { background: #202326; }
+.theme-preview-dark > span:first-child { background: #171e24; border-color: #43525d; }
+.theme-preview-dark > span:last-child { border-color: #91b9cf; }
+.theme-preview-system { background: linear-gradient(110deg, #edf0f6 50%, #202326 50%); }
 
 .language-menu { background: var(--background); box-shadow: 7px 9px 22px var(--shadow-dark), -3px -3px 10px var(--shadow-light); border: 1px solid color-mix(in srgb, var(--line) 65%, transparent); }
 .theme-radio { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 14px; height: 14px; border: 1px solid var(--line); border-radius: 50%; }
