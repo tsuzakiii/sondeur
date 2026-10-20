@@ -121,12 +121,13 @@ export default function GraphView({
 
     const simLinks: SimLink[] = visibleLinks.map((l) => ({ ...l }));
 
-    // Keep the dot pitch fixed in screen pixels, but anchor its phase to the
-    // rendered root. Both force ticks (including dragging) and zoom/pan update it.
+    // Anchor the grid to the rendered root and scale its dots and pitch with
+    // the viewport. Force ticks (including dragging) and zoom/pan both update it.
     const syncGrid = (transform: ZoomTransform) => {
       const rootNode = simNodesRef.current.get(tree.rootNodeId);
       const canvas = svg.parentElement;
       if (!canvas || rootNode?.x == null || rootNode.y == null) return;
+      canvas.style.setProperty("--graph-zoom", String(transform.k));
       canvas.style.setProperty("--graph-origin-x", `${transform.applyX(rootNode.x)}px`);
       canvas.style.setProperty("--graph-origin-y", `${transform.applyY(rootNode.y)}px`);
     };
