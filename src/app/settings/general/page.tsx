@@ -3,6 +3,7 @@ import { useI18n } from "@/lib/i18n";
 import { useTheme, type Theme } from "@/lib/theme";
 import LanguageMenu from "@/components/settings/LanguageMenu";
 import { SettingsHeading } from "@/components/settings/SettingsShell";
+import InterestSettings from "@/components/settings/InterestSettings";
 
 export default function GeneralSettings() {
   const { t } = useI18n();
@@ -24,6 +25,7 @@ export default function GeneralSettings() {
           </label>)}
         </div>
       </fieldset>
+      <InterestSettings />
     </div>
     <p className="mt-4 text-xs text-slate-500">{t("settings.autoSave")}</p>
   </>;

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { useInterests } from "@/lib/useInterests";
+import { suggestionsCacheKey } from "@/lib/interests";
 import Sidebar from "@/components/Sidebar";
 import DocumentPanel from "@/components/DocumentPanel";
 import ReadingPanel from "@/components/ReadingPanel";
@@ -26,6 +28,8 @@ const GraphView = dynamic(() => import("@/components/GraphView"), { ssr: false }
 export default function Home() {
   const { trees } = useTreeStore();
   const { t, locale } = useI18n();
+  const { interests, ready: interestsReady } = useInterests();
+  const interestKey = interests.join(",");
   const isMobile = useIsMobile();
   // モバイルではドロワー扱いなので初期状態は閉じる (SSR中は判定不能なので開)
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(
@@ -92,9 +96,8 @@ export default function Home() {
         if (!cancelled) setSuggestions(next);
       }, 0);
     };
-    // v2: フォールバック汚染事故 (2026-07-10、失効キー期間にfallbackが日付付きで
-    // キャッシュされ丸一日固定表示) の切り捨てのためキー版数を上げた
-    const cacheKey = `sondeur.suggestions.v2.${locale}`;
+    if (!interestsReady) return;
+    const cacheKey = suggestionsCacheKey(locale, interests);
     try {
       const raw = localStorage.getItem(cacheKey);
       if (raw) {
@@ -111,7 +114,7 @@ export default function Home() {
     } catch {}
     setSuggestionsSoon(null);
     const controller = new AbortController();
-    fetch(`/api/suggestions?lang=${locale}`, { signal: controller.signal })
+    fetch(`/api/suggestions?${new URLSearchParams({ lang: locale, topics: interestKey })}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (cancelled) return;
@@ -130,7 +133,7 @@ export default function Home() {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [locale]);
+  }, [locale, interestKey, interests, interestsReady]);
 
   const treeList = useMemo(
     () => Object.values(trees).sort((a, b) => b.updatedAt - a.updatedAt),

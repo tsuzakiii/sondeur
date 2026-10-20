@@ -14,6 +14,16 @@ export const LOCALES: { code: Locale; label: string; flag: string }[] = [
 type Dict = Record<string, string>;
 
 const en: Dict = {
+  "sidebar.loading": "Loading your trails…",
+  "sidebar.loadFailed": "Could not load all your trails. Saved trails on this browser are still available.",
+  "settings.interests": "Topics you’re interested in",
+  "settings.interestsHelp": "Choose up to 3 topics for your Home suggestions. Leave all unselected for a broad mix.",
+  "settings.interestsGuest": "Saved on this browser for guest use.",
+  "settings.interestsAccount": "Saved to your account across devices.",
+  "settings.saveInterests": "Save topics",
+  "settings.saving": "Saving…",
+  "settings.interestsFailed": "Could not save your topics. Please try again.",
+
   "settings.title": "Settings",
   "settings.general": "General",
   "settings.billing": "Plan & billing",
@@ -28,7 +38,7 @@ const en: Dict = {
   "settings.system": "System",
   "settings.light": "Light",
   "settings.dark": "Dark",
-  "settings.autoSave": "Changes are saved automatically.",
+  "settings.autoSave": "Language and theme changes are saved automatically.",
   "settings.billingIntro": "Your plan, usage, and payment details in one place.",
   "settings.currentPlan": "Current plan",
   "settings.usage": "Generations this month",
@@ -195,6 +205,16 @@ const en: Dict = {
 };
 
 const ja: Dict = {
+  "sidebar.loading": "航跡を読み込んでいます…",
+  "sidebar.loadFailed": "航跡をすべて取得できませんでした。このブラウザに保存済みの航跡は引き続き表示しています。",
+  "settings.interests": "興味のあるトピック",
+  "settings.interestsHelp": "Homeのおすすめに使うトピックを3つまで選べます。未選択なら幅広い話題を表示します。",
+  "settings.interestsGuest": "ゲスト用の設定として、このブラウザに保存します。",
+  "settings.interestsAccount": "アカウントに保存し、他の端末にも反映します。",
+  "settings.saveInterests": "トピックを保存",
+  "settings.saving": "保存中…",
+  "settings.interestsFailed": "トピックを保存できませんでした。もう一度お試しください。",
+
   "settings.title": "設定",
   "settings.general": "一般",
   "settings.billing": "プランとお支払い",
@@ -209,7 +229,7 @@ const ja: Dict = {
   "settings.system": "端末に合わせる",
   "settings.light": "ライト",
   "settings.dark": "ダーク",
-  "settings.autoSave": "変更は自動で保存されます。",
+  "settings.autoSave": "言語とテーマの変更は自動で保存されます。",
   "settings.billingIntro": "プラン、利用状況、お支払いをまとめて確認できます。",
   "settings.currentPlan": "現在のプラン",
   "settings.usage": "今月の生成回数",

@@ -2,7 +2,9 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import AuthFooter from "./AuthFooter";
-import { useAuthInfo } from "@/lib/authState";
+import { useAuthInfo, useAuthReady } from "@/lib/authState";
+import { useSyncStatus } from "@/lib/syncStatus";
+import { retrySync } from "@/lib/sync";
 import { useI18n } from "@/lib/i18n";
 import { setShared } from "@/lib/store";
 import type { SondeurNode, Tree } from "@/lib/types";
@@ -78,6 +80,22 @@ export default function Sidebar({
   // 共有操作の結果フィードバック。ok=false は失敗の ✕ 表示 (無言失敗の禁止)
   const [shareToast, setShareToast] = useState<{ id: string; ok: boolean } | null>(null);
   const auth = useAuthInfo();
+  const authReady = useAuthReady();
+  const syncStatus = useSyncStatus();
+  const loadingTrails = !authReady || (auth.kind === "signedIn" && (syncStatus === "loading" || syncStatus === "idle"));
+  const loadFailed = auth.kind === "signedIn" && syncStatus === "error";
+  useEffect(() => {
+    const recover = () => {
+      if (auth.kind === "signedIn" && document.visibilityState === "visible") void retrySync();
+    };
+    if (!loadFailed) return;
+    window.addEventListener("online", recover);
+    document.addEventListener("visibilitychange", recover);
+    return () => {
+      window.removeEventListener("online", recover);
+      document.removeEventListener("visibilitychange", recover);
+    };
+  }, [loadFailed, auth.kind]);
   // ゲストのツリーはサーバーに存在しないので共有は原理的に不可 → ボタン自体を出さない
   const canShare = auth.kind === "signedIn";
   // Sidebar は開閉中も mount したままなので、Date.now() を 1 分刻みで更新する。lint の
@@ -174,6 +192,12 @@ export default function Sidebar({
         />
       </div>
 
+      {(loadingTrails || loadFailed) && (
+        <div className="px-5 py-3 text-xs leading-5 text-rail-muted" role="status">
+          {t(loadFailed ? "sidebar.loadFailed" : "sidebar.loading")}
+          {loadFailed && <button type="button" onClick={() => void retrySync()} className="mt-2 block rounded px-2 py-1 text-rail-text underline underline-offset-4 hover:bg-rail-hover">{t("error.retry")}</button>}
+        </div>
+      )}
       {hits !== null ? (
         <div className="flex-1 overflow-y-auto px-2 py-1.5">
           {hits.length === 0 && (
@@ -195,7 +219,7 @@ export default function Sidebar({
         </div>
       ) : (
       <div className="flex-1 overflow-y-auto px-2 py-1.5">
-        {trees.length === 0 && (
+        {trees.length === 0 && !loadingTrails && !loadFailed && (
           <div className="px-3 py-8 text-xs leading-6 text-rail-muted">
             {t("sidebar.empty")}
             <br />
