@@ -217,6 +217,8 @@ body {
 :root[data-theme="dark"] .graph-canvas {
   background-image: radial-gradient(circle, var(--graph-grid) .85px, transparent 1px);
   background-size: 24px 24px;
+  /* Gradient dots sit at the tile center; keep one centered on the root. */
+  background-position: calc(var(--graph-origin-x, 12px) - 12px) calc(var(--graph-origin-y, 12px) - 12px);
 }
 :root[data-theme="dark"] .graph-canvas circle.body {
   fill: color-mix(in srgb, var(--graph-node-accent) 30%, var(--background));
