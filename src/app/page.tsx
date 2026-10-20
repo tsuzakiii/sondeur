@@ -289,7 +289,7 @@ export default function Home() {
         <DocumentPanel key={documentTreeId} tree={trees[documentTreeId]} onClose={() => setDocumentTreeId(null)} />
       )}
       <div className="flex h-full min-w-0 flex-1">
-        <div className={`relative h-full min-w-0 flex-1 ${blankMode && !tree ? "graph-canvas" : ""}`}>
+        <div className={`relative h-full min-w-0 flex-1 ${!tree ? "graph-canvas" : ""}`}>
           {tree ? (
             <>
               <button

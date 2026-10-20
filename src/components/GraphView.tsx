@@ -13,7 +13,7 @@ import {
   type SimulationNodeDatum,
 } from "d3-force";
 import { select } from "d3-selection";
-import { zoom, zoomIdentity, zoomTransform, type ZoomBehavior } from "d3-zoom";
+import { zoom, zoomIdentity, zoomTransform, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
 import { drag } from "d3-drag";
 import { depthOf } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
@@ -121,19 +121,36 @@ export default function GraphView({
 
     const simLinks: SimLink[] = visibleLinks.map((l) => ({ ...l }));
 
+    // Keep the dot pitch fixed in screen pixels, but anchor its phase to the
+    // rendered root. Both force ticks (including dragging) and zoom/pan update it.
+    const syncGrid = (transform: ZoomTransform) => {
+      const rootNode = simNodesRef.current.get(tree.rootNodeId);
+      const canvas = svg.parentElement;
+      if (!canvas || rootNode?.x == null || rootNode.y == null) return;
+      canvas.style.setProperty("--graph-origin-x", `${transform.applyX(rootNode.x)}px`);
+      canvas.style.setProperty("--graph-origin-y", `${transform.applyY(rootNode.y)}px`);
+    };
     const root = select(svg);
     let g = root.select<SVGGElement>("g.viewport");
+    const syncViewport = (event: { transform: ZoomTransform }) => {
+      g.attr("transform", event.transform.toString());
+      syncGrid(event.transform);
+    };
     if (g.empty()) {
       g = root.append("g").attr("class", "viewport");
       const zoomBehavior = zoom<SVGSVGElement, unknown>()
         .scaleExtent([0.2, 4])
-        .on("zoom", (event) => g.attr("transform", event.transform));
+        .on("zoom", syncViewport);
       zoomRef.current = zoomBehavior;
       root.call(zoomBehavior).on("dblclick.zoom", null);
       // ノード座標はウィンドウ座標系。svg の画面上の位置ずれは初期ズーム変換に焼き込む
       root.call(zoomBehavior.transform, zoomIdentity.translate(-rect.left, -rect.top));
       lastRectRef.current = { left: rect.left, top: rect.top };
+    } else {
+      // The component is reused across trees; refresh the root captured here.
+      zoomRef.current?.on("zoom", syncViewport);
     }
+    syncGrid(zoomTransform(svg));
 
     const linkSel = g
       .selectAll<SVGLineElement, SimLink>("line.edge")
@@ -280,6 +297,7 @@ export default function GraphView({
           .attr("y2", (t.y ?? 0) - (dy / dist) * tr);
       });
       nodeSel.attr("transform", (d) => `translate(${d.x ?? 0},${d.y ?? 0})`);
+      syncGrid(zoomTransform(svg));
     });
 
     const dragBehavior = drag<SVGGElement, SimNode>()
