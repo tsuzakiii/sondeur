@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { LOCALES, useI18n } from "@/lib/i18n";
 
 export default function LanguageMenu() {
-  const { locale, setLocale, t } = useI18n();
+  const { locale, localeSaveFailed, setLocale, t } = useI18n();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const root = useRef<HTMLDivElement>(null);
@@ -41,5 +41,9 @@ export default function LanguageMenu() {
         {language.label}<span aria-hidden="true" className="ml-5 text-xs">{locale === language.code ? "✓" : ""}</span>
       </button>)}
     </div>}
+    {localeSaveFailed && <p role="status" className="mt-3 text-xs text-slate-600">
+      {t("settings.languageSaveFailed")}{" "}
+      <button type="button" className="underline underline-offset-2" onClick={() => setLocale(locale)}>{t("settings.retry")}</button>
+    </p>}
   </div>;
 }

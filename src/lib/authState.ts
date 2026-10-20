@@ -19,6 +19,9 @@ export type AuthInfo =
 
 const SIGNED_OUT: AuthInfo = { kind: "signedOut" };
 let authInfo: AuthInfo = SIGNED_OUT;
+export function getSignedInUserId(): string | null {
+  return authInfo.kind === "signedIn" ? authInfo.userId : null;
+}
 const listeners = new Set<() => void>();
 let initialized = false;
 let authReady = false;

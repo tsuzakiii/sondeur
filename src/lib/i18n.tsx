@@ -2,8 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { getSupabase } from "./supabase/client";
-import { useAuthInfo, useAuthReady } from "./authState";
+import { getSignedInUserId, useAuthInfo, useAuthReady } from "./authState";
 import { LOCALE_STORAGE, persistLocale, validLocale, type Locale } from "./localeConfig";
+import { pendingAccountLocale, stageAccountLocale, syncAccountLocale } from "./localeSync";
 
 export type { Locale } from "./localeConfig";
 
@@ -34,6 +35,7 @@ const en: Dict = {
   "settings.generalIntro": "Make Sondeur feel at home.",
   "settings.language": "Language",
   "settings.languageHelp": "Used for menus and new explanations. Saved content stays in its original language.",
+  "settings.languageSaveFailed": "Saved on this browser. Could not sync the language to your account.",
   "settings.theme": "Color theme",
   "settings.themeHelp": "Choose how Sondeur looks on this browser.",
   "settings.system": "System",
@@ -225,6 +227,7 @@ const ja: Dict = {
   "settings.generalIntro": "使いやすい表示に整えましょう。",
   "settings.language": "言語",
   "settings.languageHelp": "画面と新しく生成する説明に使います。保存済みの内容は元の言語のままです。",
+  "settings.languageSaveFailed": "このブラウザには保存済みです。アカウントへの言語設定の同期に失敗しました。",
   "settings.theme": "カラーテーマ",
   "settings.themeHelp": "このブラウザでの表示を選べます。",
   "settings.system": "端末に合わせる",
@@ -402,6 +405,7 @@ export const dicts: Record<Locale, Dict> = { en, ja };
 interface I18nContextValue {
   locale: Locale;
   ready: boolean;
+  localeSaveFailed: boolean;
   setLocale: (l: Locale) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
 }
@@ -412,11 +416,17 @@ export function I18nProvider({ children, initialLocale, hasSavedLocale }: { chil
   const [locale, setLocaleRaw] = useState<Locale>(initialLocale);
   const [bootstrapped, setBootstrapped] = useState(hasSavedLocale);
   const [readyOwner, setReadyOwner] = useState<string | null>(null);
+  const [failedOwner, setFailedOwner] = useState<string | null>(null);
   const auth = useAuthInfo();
   const authReady = useAuthReady();
   const userId = auth.kind === "signedIn" ? auth.userId : null;
   const owner = userId ?? "guest";
   const languageRevision = useRef(0);
+
+  const saveAccountChoice = useCallback(async (id: string) => {
+    const saved = await syncAccountLocale(id);
+    if (getSignedInUserId() === id) setFailedOwner(saved ? null : id);
+  }, []);
 
   // Migrate pre-cookie installations once. Later loads already arrive translated.
   useEffect(() => {
@@ -440,9 +450,15 @@ export function I18nProvider({ children, initialLocale, hasSavedLocale }: { chil
     const load = async () => {
       try {
         if (userId && supabase) {
+          const pending = pendingAccountLocale(userId);
+          if (pending) {
+            setLocaleRaw(pending);
+            void saveAccountChoice(userId);
+            return;
+          }
           const { data } = await supabase.from("profiles").select("locale").eq("id", userId)
             .abortSignal(AbortSignal.any([controller.signal, AbortSignal.timeout(5000)])).single();
-          if (!cancelled && revision === languageRevision.current && validLocale(data?.locale)) {
+          if (!cancelled && revision === languageRevision.current && !pendingAccountLocale(userId) && validLocale(data?.locale)) {
             setLocaleRaw(data!.locale);
           }
         }
@@ -454,7 +470,16 @@ export function I18nProvider({ children, initialLocale, hasSavedLocale }: { chil
     };
     void load();
     return () => { cancelled = true; controller.abort(); };
-  }, [authReady, bootstrapped, userId, owner]);
+  }, [authReady, bootstrapped, userId, owner, saveAccountChoice]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const retry = () => {
+      if (pendingAccountLocale(userId)) void saveAccountChoice(userId);
+    };
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [userId, saveAccountChoice]);
 
   const setLocale = useCallback(
     (l: Locale) => {
@@ -463,12 +488,13 @@ export function I18nProvider({ children, initialLocale, hasSavedLocale }: { chil
       persistLocale(l);
       document.documentElement.lang = l;
       setReadyOwner(owner);
-      const supabase = getSupabase();
-      if (supabase && auth.kind === "signedIn") {
-        void supabase.rpc("update_locale", { p_locale: l });
+      setFailedOwner(null);
+      if (userId) {
+        stageAccountLocale(userId, l);
+        void saveAccountChoice(userId);
       }
     },
-    [auth, owner]
+    [userId, owner, saveAccountChoice]
   );
 
   useEffect(() => {
@@ -491,7 +517,7 @@ export function I18nProvider({ children, initialLocale, hasSavedLocale }: { chil
     [locale]
   );
 
-  return <I18nContext.Provider value={{ locale, ready: bootstrapped && authReady && readyOwner === owner, setLocale, t }}>{children}</I18nContext.Provider>;
+  return <I18nContext.Provider value={{ locale, ready: bootstrapped && authReady && readyOwner === owner, localeSaveFailed: failedOwner === owner, setLocale, t }}>{children}</I18nContext.Provider>;
 }
 
 export function useI18n() {
