@@ -27,7 +27,7 @@ const GraphView = dynamic(() => import("@/components/GraphView"), { ssr: false }
 
 export default function Home() {
   const { trees } = useTreeStore();
-  const { t, locale } = useI18n();
+  const { t, locale, ready: localeReady } = useI18n();
   const { interests, ready: interestsReady } = useInterests();
   const interestKey = interests.join(",");
   const isMobile = useIsMobile();
@@ -96,7 +96,7 @@ export default function Home() {
         if (!cancelled) setSuggestions(next);
       }, 0);
     };
-    if (!interestsReady) return;
+    if (!interestsReady || !localeReady) return;
     const cacheKey = suggestionsCacheKey(locale, interests);
     try {
       const raw = localStorage.getItem(cacheKey);
@@ -133,7 +133,7 @@ export default function Home() {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [locale, interestKey, interests, interestsReady]);
+  }, [locale, interestKey, interests, interestsReady, localeReady]);
 
   const treeList = useMemo(
     () => Object.values(trees).sort((a, b) => b.updatedAt - a.updatedAt),
