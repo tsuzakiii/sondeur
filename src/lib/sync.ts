@@ -4,6 +4,7 @@ import { getSupabase } from "./supabase/client";
 import { clearTrees, getState, getStorageOwner, getStoredTreesForOwner, hydrate, restoreTrailDocument } from "./store";
 import type { SondeurNode, Tree } from "./types";
 import type { TrailDocument } from "./trailDocument";
+import { getSyncStatus, setSyncStatus } from "./syncStatus";
 
 /**
  * Supabase への write-through 同期。
@@ -16,6 +17,7 @@ import type { TrailDocument } from "./trailDocument";
 let userId: string | null = null;
 /** ログイン/ログアウトの世代。startSync 中にセッションが変わったら結果を捨てるためのガード */
 let generation = 0;
+let loadController: AbortController | null = null;
 
 export function isSyncActive(): boolean {
   return userId !== null;
@@ -166,21 +168,59 @@ function mergeTree(local: Tree, remote: Tree): { merged: Tree; needsRepair: bool
 export async function startSync(uid: string) {
   const supabase = getSupabase();
   if (!supabase) return;
+  if (userId === uid && getSyncStatus() === "loading") return;
+  loadController?.abort();
+  const controller = new AbortController();
+  loadController = controller;
   const gen = ++generation;
   userId = uid;
   const localOwner = getStorageOwner();
+  setSyncStatus("loading");
+  // Auth has confirmed the owner. Keep their saved copy visible during a
+  // temporary network/auth failure, without exposing a different user's cache.
+  if (localOwner === uid) hydrate(getStoredTreesForOwner(uid), uid);
 
-  const [{ data: treeRows, error: tErr }, { data: nodeRows, error: nErr }, { data: documentRows, error: dErr }] = await Promise.all([
-    supabase.from("trees").select("*"),
-    supabase.from("nodes").select("*"),
-    supabase.from("tree_documents").select("tree_id,markdown,source_key,created_at,locale"),
-  ]);
-  if (gen !== generation) return; // 取得中にログアウト/アカウント切替が起きた
-  if (tErr || nErr) {
-    console.error("[sync] initial load failed", tErr ?? nErr);
+  const fetchSnapshot = async () => {
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
+    const [trees, nodes, documents] = await Promise.all([
+      supabase.from("trees").select("*").eq("user_id", uid).abortSignal(signal),
+      supabase.from("nodes").select("*").abortSignal(signal),
+      supabase.from("tree_documents").select("tree_id,markdown,source_key,created_at,locale").abortSignal(signal),
+    ]);
+    if (trees.error || nodes.error || documents.error) throw trees.error ?? nodes.error ?? documents.error;
+    return { treeRows: trees.data, nodeRows: nodes.data, documentRows: documents.data };
+  };
+  let snapshot: Awaited<ReturnType<typeof fetchSnapshot>> | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (gen !== generation) return;
+    try {
+      snapshot = await fetchSnapshot();
+      break;
+    } catch (error) {
+      if (gen !== generation) return;
+      if (attempt === 2) {
+        console.error("[sync] initial load failed", error);
+        setSyncStatus("error");
+        return;
+      }
+      // Rebuild the requests so Supabase reads the refreshed session on retry.
+      await new Promise<void>((resolve) => {
+        const done = () => {
+          clearTimeout(timer);
+          controller.signal.removeEventListener("abort", done);
+          resolve();
+        };
+        const timer = setTimeout(done, 500 * (attempt + 1));
+        controller.signal.addEventListener("abort", done, { once: true });
+      });
+    }
+  }
+  if (gen !== generation || !snapshot) return;
+  const { treeRows, nodeRows, documentRows } = snapshot;
+  if (getStorageOwner() !== localOwner) {
+    setSyncStatus("error");
     return;
   }
-  if (dErr) console.error("[sync] document load failed", dErr);
 
   const remote: Record<string, Tree> = {};
   for (const r of (treeRows ?? []) as TreeRow[]) {
@@ -214,18 +254,19 @@ export async function startSync(uid: string) {
     if (!rt) {
       // ゲスト時代 (または過去の書き込み失敗) のローカルツリーをリモートへ移行
       merged[lt.id] = lt;
-      enqueue(lt.id, "migrate tree", () => upsertTreeWithNodes(lt, uid));
+      enqueue(lt.id, "migrate tree", async () => { if (gen === generation) await upsertTreeWithNodes(lt, uid); });
     } else {
       const { merged: mt, needsRepair } = mergeTree(lt, rt);
       merged[lt.id] = mt;
       if (needsRepair) {
-        enqueue(mt.id, "repair tree", () => upsertTreeWithNodes(mt, uid));
+        enqueue(mt.id, "repair tree", async () => { if (gen === generation) await upsertTreeWithNodes(mt, uid); });
       }
     }
   }
 
   if (gen !== generation) return;
   hydrate(merged, uid);
+  setSyncStatus("ready");
   // Includes old device-only documents and guest documents being migrated on sign-in.
   for (const tree of Object.values(merged)) {
     if (tree.document && !tree.document.synced) void syncDocumentSaved(tree.id);
@@ -233,9 +274,16 @@ export async function startSync(uid: string) {
 }
 
 export function stopSync(options: { clearLocal?: boolean } = {}) {
+  loadController?.abort();
+  loadController = null;
   userId = null;
   generation++;
+  setSyncStatus("idle");
   if (options.clearLocal) clearTrees("guest");
+}
+
+export function retrySync() {
+  if (userId) return startSync(userId);
 }
 
 // ---- write-through hooks ----

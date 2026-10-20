@@ -23,6 +23,7 @@ beforeEach(() => {
   vi.mocked(checkGuestRateLimit).mockResolvedValue(true);
   createResponse.mockImplementation(async function* () {
     yield { type: "response.created" };
+    yield { type: "response.web_search_call.completed" };
     yield { type: "response.output_text.delta", delta: "理由は" };
     yield { type: "response.output_text.delta", delta: "これです。" };
     yield { type: "response.completed" };
@@ -69,6 +70,7 @@ describe("Luna route integration", () => {
 
   it("does not turn a failed provider stream into a successful empty answer", async () => {
     createResponse.mockImplementation(async function* () {
+      yield { type: "response.web_search_call.completed" };
       yield { type: "response.output_text.delta", delta: "partial" };
       throw new Error("provider failed");
     });
@@ -85,4 +87,34 @@ it("uses Parallel sources without OpenAI search tools when selected", async () =
   expect(searchParallel).toHaveBeenCalledTimes(1);
   expect(createResponse.mock.calls[0][0]).not.toHaveProperty("tools");
   expect(createResponse.mock.calls[0][0].input).toContain("verified fact");
+});
+
+it("requires OpenAI web search for roots, but leaves follow-up search optional", async () => {
+  await (await POST(request("root"))).text();
+  expect(createResponse.mock.calls[0][0].tool_choice).toBe("required");
+  await (await POST(request("what"))).text();
+  expect(createResponse.mock.calls[1][0]).not.toHaveProperty("tool_choice");
+});
+
+it("never generates an unsearched root after Parallel fails", async () => {
+  vi.stubEnv("SONDEUR_SEARCH_PROVIDER", "parallel");
+  vi.mocked(searchParallel).mockRejectedValue(new Error("search unavailable"));
+  const response = await POST(request());
+  await expect(response.text()).rejects.toThrow("search unavailable");
+  expect(createResponse).not.toHaveBeenCalled();
+});
+
+it("rejects a root response if OpenAI does not complete its required search", async () => {
+  createResponse.mockImplementation(async function* () {
+    yield { type: "response.output_text.delta", delta: "Unsearched answer" };
+  });
+  const response = await POST(request());
+  await expect(response.text()).rejects.toThrow("Root search did not complete");
+});
+
+it("does not serve unsearched mock answers when production is misconfigured", async () => {
+  vi.stubEnv("OPENAI_API_KEY", undefined);
+  vi.stubEnv("NODE_ENV", "production");
+  expect((await POST(request())).status).toBe(503);
+  expect(createResponse).not.toHaveBeenCalled();
 });

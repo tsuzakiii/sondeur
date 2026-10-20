@@ -17,7 +17,10 @@ beforeEach(() => {
   stopSync({ clearLocal: true });
   remoteTrees = [treeRow]; remoteDocs = [];
   upsert = vi.fn().mockResolvedValue({ error: null });
-  from.mockImplementation((name: string) => ({ select: vi.fn(async () => ({ data: name === "trees" ? remoteTrees : name === "tree_documents" ? remoteDocs : [], error: null })), upsert }));
+  from.mockImplementation((name: string) => {
+    const query = { eq: vi.fn(() => query), abortSignal: vi.fn(async () => ({ data: name === "trees" ? remoteTrees : name === "tree_documents" ? remoteDocs : [], error: null })) };
+    return { select: vi.fn(() => query), upsert };
+  });
   rpc.mockImplementation(async (_name, p) => ({ data: [{ tree_id: p.p_tree_id, markdown: p.p_markdown, source_key: p.p_source_key, created_at: p.p_created_at, locale: p.p_locale }], error: null }));
 });
 afterEach(() => { stopSync({ clearLocal: true }); vi.clearAllMocks(); vi.unstubAllGlobals(); });

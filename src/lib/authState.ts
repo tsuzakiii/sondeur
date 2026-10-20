@@ -4,6 +4,8 @@ import { useSyncExternalStore } from "react";
 import { getSupabase } from "./supabase/client";
 import { startSync, stopSync } from "./sync";
 import { clearAllCachedProfiles } from "@/components/authFooterCache";
+import { getSyncStatus } from "./syncStatus";
+import { INTERESTS_METADATA_KEY, normalizeInterests, type InterestId } from "./interests";
 
 /**
  * 認証状態のモジュールレベルストア。
@@ -13,7 +15,7 @@ import { clearAllCachedProfiles } from "@/components/authFooterCache";
 
 export type AuthInfo =
   | { kind: "signedOut" }
-  | { kind: "signedIn"; userId: string; email: string };
+  | { kind: "signedIn"; userId: string; email: string; interests: InterestId[] };
 
 const SIGNED_OUT: AuthInfo = { kind: "signedOut" };
 let authInfo: AuthInfo = SIGNED_OUT;
@@ -30,12 +32,13 @@ export function initAuth() {
   const supabase = getSupabase();
   if (!supabase) { authReady = true; emit(); return; }
   initialized = true;
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
     if (session?.user) {
       const next: AuthInfo = {
         kind: "signedIn",
         userId: session.user.id,
         email: session.user.email ?? "",
+        interests: normalizeInterests(session.user.user_metadata?.[INTERESTS_METADATA_KEY]),
       };
       if (authInfo.kind === "signedIn" && authInfo.userId !== next.userId) {
         stopSync({ clearLocal: true });
@@ -48,6 +51,16 @@ export function initAuth() {
         authInfo = next;
         emit();
         void startSync(session.user.id);
+      } else {
+        // Preferences are display data, never authorization. A metadata update
+        // must not start another full Trail sync.
+        if (authInfo.interests.join(",") !== next.interests.join(",")) {
+          authInfo = next;
+          emit();
+        }
+        if ((event === "TOKEN_REFRESHED" || event === "SIGNED_IN") && getSyncStatus() === "error") {
+          void startSync(session.user.id);
+        }
       }
     } else {
       if (authInfo.kind !== "signedOut") {
@@ -89,6 +102,20 @@ export async function signInWithEmail(email: string): Promise<string | null> {
 
 export function signOut() {
   void getSupabase()?.auth.signOut();
+}
+
+export async function saveAccountInterests(uid: string, interests: InterestId[]): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase || authInfo.kind !== "signedIn" || authInfo.userId !== uid) return false;
+  try {
+    const { data, error } = await supabase.auth.updateUser({
+      data: { [INTERESTS_METADATA_KEY]: normalizeInterests(interests) },
+    });
+    if (error || data.user?.id !== uid || authInfo.kind !== "signedIn" || authInfo.userId !== uid) return false;
+    authInfo = { ...authInfo, interests: normalizeInterests(data.user.user_metadata?.[INTERESTS_METADATA_KEY]) };
+    emit();
+    return true;
+  } catch { return false; }
 }
 
 /** Wait for the initial auth event before treating a direct settings visit as a guest. */
