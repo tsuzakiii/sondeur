@@ -5,6 +5,8 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import Providers from "@/components/Providers";
 import "./globals.css";
 import { THEME_INIT_SCRIPT } from "@/lib/themeConfig";
+import { cookies, headers } from "next/headers";
+import { initialRequestLocale, LOCALE_COOKIE, localeBootstrapScript, validLocale } from "@/lib/localeConfig";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,20 +51,25 @@ export const viewport: Viewport = {
   themeColor: "#e8ecf3",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [cookieStore, requestHeaders] = await Promise.all([cookies(), headers()]);
+  const savedLocale = validLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+  const initialLocale = initialRequestLocale(savedLocale, requestHeaders.get("accept-language"));
   return (
     <html
-      lang="en"
+      lang={initialLocale}
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${notoSansJp.variable} h-full antialiased`}
     >
-      <head><script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} /></head>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT + localeBootstrapScript(Boolean(savedLocale)) }} />
+      </head>
       <body className="min-h-full flex flex-col">
-        <Providers>{children}</Providers>
+        <Providers initialLocale={initialLocale} hasSavedLocale={Boolean(savedLocale)}>{children}</Providers>
         <Analytics />
         <SpeedInsights />
       </body>

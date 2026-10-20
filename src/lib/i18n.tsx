@@ -2,9 +2,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { getSupabase } from "./supabase/client";
-import { useAuthInfo } from "./authState";
+import { useAuthInfo, useAuthReady } from "./authState";
+import { LOCALE_STORAGE, persistLocale, validLocale, type Locale } from "./localeConfig";
 
-export type Locale = "en" | "ja";
+export type { Locale } from "./localeConfig";
 
 export const LOCALES: { code: Locale; label: string; flag: string }[] = [
   { code: "en", label: "English", flag: "🇬🇧" },
@@ -400,70 +401,82 @@ export const dicts: Record<Locale, Dict> = { en, ja };
 
 interface I18nContextValue {
   locale: Locale;
+  ready: boolean;
   setLocale: (l: Locale) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
 }
 
 const I18nContext = createContext<I18nContextValue>(null!);
 
-const STORAGE_KEY = "sondeur.locale";
-
-export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleRaw] = useState<Locale>("en");
+export function I18nProvider({ children, initialLocale, hasSavedLocale }: { children?: ReactNode; initialLocale: Locale; hasSavedLocale: boolean }) {
+  const [locale, setLocaleRaw] = useState<Locale>(initialLocale);
+  const [bootstrapped, setBootstrapped] = useState(hasSavedLocale);
+  const [readyOwner, setReadyOwner] = useState<string | null>(null);
   const auth = useAuthInfo();
+  const authReady = useAuthReady();
+  const userId = auth.kind === "signedIn" ? auth.userId : null;
+  const owner = userId ?? "guest";
   const languageRevision = useRef(0);
 
-  // Read stored locale on mount (avoids SSR hydration mismatch)
+  // Migrate pre-cookie installations once. Later loads already arrive translated.
   useEffect(() => {
+    if (hasSavedLocale) return;
+    const revision = languageRevision.current;
     const timer = window.setTimeout(() => {
-      let stored: string | null = null;
-      try { stored = localStorage.getItem(STORAGE_KEY); } catch {}
-      if (stored === "en" || stored === "ja") {
-        setLocaleRaw(stored);
-        document.documentElement.lang = stored;
-      }
+      let stored: Locale | null = null;
+      try { stored = validLocale(localStorage.getItem(LOCALE_STORAGE)); } catch {}
+      if (revision === languageRevision.current) setLocaleRaw(stored ?? initialLocale);
+      setBootstrapped(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [hasSavedLocale, initialLocale]);
 
   useEffect(() => {
-    if (auth.kind !== "signedIn") return;
+    if (!bootstrapped || !authReady) return;
     const supabase = getSupabase();
-    if (!supabase) return;
     let cancelled = false;
     const revision = languageRevision.current;
-    supabase
-      .from("profiles")
-      .select("locale")
-      .single()
-      .then(({ data }) => {
-        if (cancelled || revision !== languageRevision.current) return;
-        if (data?.locale && (data.locale === "en" || data.locale === "ja")) {
-          setLocaleRaw(data.locale);
-          try { localStorage.setItem(STORAGE_KEY, data.locale); } catch {}
-          document.documentElement.lang = data.locale;
+    const controller = new AbortController();
+    const load = async () => {
+      try {
+        if (userId && supabase) {
+          const { data } = await supabase.from("profiles").select("locale").eq("id", userId)
+            .abortSignal(AbortSignal.any([controller.signal, AbortSignal.timeout(5000)])).single();
+          if (!cancelled && revision === languageRevision.current && validLocale(data?.locale)) {
+            setLocaleRaw(data!.locale);
+          }
         }
-      });
-    return () => { cancelled = true; };
-  }, [auth]);
+      } catch {
+        // Retain the last displayed language when account preferences are unavailable.
+      } finally {
+        if (!cancelled) setReadyOwner(owner);
+      }
+    };
+    void load();
+    return () => { cancelled = true; controller.abort(); };
+  }, [authReady, bootstrapped, userId, owner]);
 
   const setLocale = useCallback(
     (l: Locale) => {
       languageRevision.current += 1;
       setLocaleRaw(l);
-      try { localStorage.setItem(STORAGE_KEY, l); } catch {}
+      persistLocale(l);
       document.documentElement.lang = l;
+      setReadyOwner(owner);
       const supabase = getSupabase();
       if (supabase && auth.kind === "signedIn") {
         void supabase.rpc("update_locale", { p_locale: l });
       }
     },
-    [auth]
+    [auth, owner]
   );
 
   useEffect(() => {
+    if (!bootstrapped) return;
     document.documentElement.lang = locale;
-  }, [locale]);
+    persistLocale(locale);
+    delete document.documentElement.dataset.localePending;
+  }, [locale, bootstrapped]);
 
   const t = useCallback(
     (key: string, vars?: Record<string, string | number>) => {
@@ -478,7 +491,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     [locale]
   );
 
-  return <I18nContext.Provider value={{ locale, setLocale, t }}>{children}</I18nContext.Provider>;
+  return <I18nContext.Provider value={{ locale, ready: bootstrapped && authReady && readyOwner === owner, setLocale, t }}>{children}</I18nContext.Provider>;
 }
 
 export function useI18n() {
@@ -494,5 +507,5 @@ export function getCurrentLocale(): Locale {
   if (typeof window === "undefined") return "en";
   const displayed = document.documentElement.lang;
   if (displayed === "en" || displayed === "ja") return displayed;
-  try { return localStorage.getItem(STORAGE_KEY) === "ja" ? "ja" : "en"; } catch { return "en"; }
+  try { return localStorage.getItem(LOCALE_STORAGE) === "ja" ? "ja" : "en"; } catch { return "en"; }
 }

@@ -58,6 +58,11 @@ body {
   height: 100%;
 }
 
+/* Only legacy localStorage users whose saved language differs from the HTML. */
+html[data-locale-pending] .locale-content {
+  visibility: hidden;
+}
+
 /* ---- Neumorphism utilities ---- */
 @utility neu-raised {
   background: var(--background);
