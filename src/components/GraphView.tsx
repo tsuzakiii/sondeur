@@ -32,7 +32,7 @@ interface SimLink extends SimulationLinkDatum<SimNode> {
   edgeType: "what" | "why" | "ask";
 }
 
-// 白背景パレット: What=紺 / Why=ワインレッド / 自由質問=黄
+// Semantic hues remain consistent across graph, legend, and reading highlights.
 const EDGE_COLOR: Record<string, string> = { what: "var(--navy)", why: "var(--wine)", ask: "var(--gold)" };
 const EDGE_DASH: Record<string, string | null> = { what: null, why: "6 4", ask: "2 4" };
 const ROOT_COLOR = "var(--navy)";
@@ -172,6 +172,10 @@ export default function GraphView({
 
     const nodeColor = (d: SimNode) =>
       d.node.edgeType === "root" ? ROOT_COLOR : EDGE_COLOR[d.node.edgeType] ?? "#64748b";
+
+    nodeSel
+      .style("--graph-node-accent", nodeColor)
+      .attr("data-selected", (d) => String(d.id === selectedNodeId));
 
     nodeSel
       .select<SVGCircleElement>("circle.body")
@@ -348,7 +352,7 @@ export default function GraphView({
   }, [structureKey]);
 
   return (
-    <div className="relative h-full w-full">
+    <div className="graph-canvas relative h-full w-full">
       <svg ref={svgRef} className="h-full w-full touch-none select-none">
         <style>{`
           circle.body {
